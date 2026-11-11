@@ -95,6 +95,8 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     # Minifica automáticamente las respuestas HTML (text/html) y su CSS/JS inline en vuelo (compatible con ASGI).
     'django_minify_html.middleware.MinifyHtmlMiddleware',
+    # Limita la tasa de solicitudes por IP en rutas generales y protege la cuota de IA (/asistente/).
+    'aliados.ratelimit.RateLimitMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -194,3 +196,25 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+# Caché en memoria local y limitación de tasa (Rate Limiting)
+# https://docs.djangoproject.com/en/6.1/topics/cache/
+
+CACHES = {
+    'default': {
+        # Backend de caché en memoria por proceso (seguro para hilos y corrutinas ASGI), utilizado por RateLimitMiddleware.
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        # Identificador único de la tabla de contadores en memoria para el portal VERLA SAS.
+        'LOCATION': 'verla-portal-ratelimit-cache',
+    },
+}
+
+# Habilita o deshabilita globalmente el middleware de control de tasa (RateLimitMiddleware).
+RATE_LIMIT_ENABLED = config("RATE_LIMIT_ENABLED", default=True, cast=bool)
+# Duración en segundos de la ventana fija de medición de solicitudes (por defecto 60 segundos = 1 minuto).
+RATE_LIMIT_WINDOW_SECONDS = config("RATE_LIMIT_WINDOW_SECONDS", default=60, cast=int)
+# Número máximo de solicitudes permitidas por ventana e IP en navegación general y operaciones CRUD.
+RATE_LIMIT_GLOBAL_REQUESTS = config("RATE_LIMIT_GLOBAL_REQUESTS", default=120, cast=int)
+# Número máximo de solicitudes permitidas por ventana e IP hacia /asistente/ para proteger la cuota gratuita de Google Gemini.
+RATE_LIMIT_AI_REQUESTS = config("RATE_LIMIT_AI_REQUESTS", default=10, cast=int)
+
