@@ -12,35 +12,77 @@
   </div>
 
   <div class="grid">
-    <article>
-      <header>
-        <strong>🏢 Red Comercial</strong>
-      </header>
-      <p>Gestione el catálogo de ciudades, aliados comerciales, coordinadores y fichas de vendedores con control de estados operativos.</p>
-      <footer>
-        <a href="{% url 'com_default' %}" role="button" class="contrast">Explorar Red</a>
-      </footer>
-    </article>
+    {% if actor.es_admin %}
+      <article>
+        <header>
+          <strong>🏢 Red Comercial</strong>
+        </header>
+        <p>Gestione el catálogo de ciudades, aliados comerciales, coordinadores y fichas de vendedores con control de estados operativos.</p>
+        <footer>
+          <a href="{% url 'com_default' %}" role="button" class="contrast">Explorar Red</a>
+        </footer>
+      </article>
 
-    <article>
-      <header>
-        <strong>📈 Metas & Ofertas</strong>
-      </header>
-      <p>Consulte el cumplimiento de metas mensuales por vendedor, coordinador y aliado, y visualice las ofertas activas del periodo.</p>
-      <footer>
-        <a href="{% url 'op_default' %}" role="button" class="contrast">Ver Operación</a>
-      </footer>
-    </article>
+      <article>
+        <header>
+          <strong>📈 Metas & Ofertas</strong>
+        </header>
+        <p>Consulte el cumplimiento de metas mensuales por vendedor, coordinador y aliado, y visualice las ofertas activas del periodo.</p>
+        <footer>
+          <a href="{% url 'op_default' %}" role="button" class="contrast">Ver Operación</a>
+        </footer>
+      </article>
 
-    <article>
-      <header>
-        <strong>🤖 Asistente IA</strong>
-      </header>
-      <p>Copiloto comercial con Google Gemini para redacción de ofertas y análisis de brechas de cumplimiento con control humano estricto.</p>
-      <footer>
-        <a href="{% url 'asis_default' %}" role="button" class="contrast">Abrir Asistente</a>
-      </footer>
-    </article>
+      <article>
+        <header>
+          <strong>🤖 Asistente IA</strong>
+        </header>
+        <p>Copiloto comercial con Google Gemini para redacción de ofertas y análisis de brechas de cumplimiento con control humano estricto.</p>
+        <footer>
+          <a href="{% url 'asis_default' %}" role="button" class="contrast">Auditoria Asistente</a>
+        </footer>
+      </article>
+    {% elif actor.es_aliado or actor.es_coordinador %}
+      <article>
+        <header>
+          <strong>🏢 Mi Red Comercial</strong>
+        </header>
+        <p>Supervise los coordinadores y fichas de vendedores asignados a su estructura comercial autorizada.</p>
+        <footer>
+          <a href="{% url 'com_default' %}" role="button" class="contrast">Ver Mi Red</a>
+        </footer>
+      </article>
+
+      <article>
+        <header>
+          <strong>📈 Metas & Ofertas</strong>
+        </header>
+        <p>Consulte el cumplimiento de metas de sus vendedores a cargo y visualice las ofertas aplicables del periodo.</p>
+        <footer>
+          <a href="{% url 'op_default' %}" role="button" class="contrast">Ver Metas</a>
+        </footer>
+      </article>
+    {% elif actor.es_vendedor %}
+      <article>
+        <header>
+          <strong>🎯 Mis Metas & Ofertas Comerciales</strong>
+        </header>
+        <p>Consulte sus metas de ventas mensuales, porcentaje de cumplimiento alcanzado y las promociones u ofertas activas para sus ciudades asignadas.</p>
+        <footer>
+          <a href="{% url 'op_default' %}" role="button" class="contrast">Ingresar a Mis Metas & Ofertas</a>
+        </footer>
+      </article>
+    {% else %}
+      <article>
+        <header>
+          <strong>🔐 Acceso al Portal</strong>
+        </header>
+        <p>Inicie sesión con sus credenciales de colaborador o aliado para acceder a sus funciones y módulos asignados.</p>
+        <footer>
+          <a href="{% url 'login' %}" role="button" class="contrast">Iniciar Sesión</a>
+        </footer>
+      </article>
+    {% endif %}
   </div>
 </section>
 {% endblock %}

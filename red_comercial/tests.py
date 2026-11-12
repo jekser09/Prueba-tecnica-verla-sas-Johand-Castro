@@ -143,16 +143,11 @@ class ModuleRoutingSmokeTests(TestCase):
     """
 
     def test_module_default_endpoints_respond_ok(self):
-        # Para com_default y op_default, un usuario anónimo es redirigido a login según RBAC
-        for protected_route in ("com_default", "op_default"):
+        # Los tres módulos requieren autenticación según sus guardas RBAC
+        for protected_route in ("com_default", "op_default", "asis_default"):
             res = self.client.get(reverse(protected_route))
             self.assertEqual(res.status_code, 302)
             self.assertIn(reverse("login"), res.headers["Location"])
-
-        # El módulo asistente_ia aún expone su endpoint de salud inicial sin login
-        response = self.client.get(reverse("asis_default"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"response": "modulo 'asistente ia' conectado"})
 
 
 class RedComercialDomainModelTests(TestCase):
@@ -199,7 +194,6 @@ class RedComercialDomainModelTests(TestCase):
 
     def test_vendedor_jerarquia_multiciudad_y_auditoria_creacion(self):
         vendedor = Vendedor.objects.create(
-            aliado=self.aliado_1,
             coordinador=self.coordinador_1,
             documento="1030555666",
             nombre_completo="Andrés Pérez",
@@ -214,6 +208,7 @@ class RedComercialDomainModelTests(TestCase):
 
         self.assertEqual(vendedor.version, 1)
         self.assertEqual(vendedor.ciudades_operacion.count(), 3)
+        self.assertEqual(vendedor.aliado, self.aliado_1)
         self.assertTrue(vendedor.puede_operar)
 
         log = AuditLog.objects.filter(entidad="Vendedor", registro_id=vendedor.pk).first()
@@ -222,19 +217,18 @@ class RedComercialDomainModelTests(TestCase):
         self.assertEqual(log.version_resultante, 1)
         self.assertEqual(log.usuario, self.actor)
 
-    def test_vendedor_clean_rechaza_coordinador_de_otro_aliado(self):
-        vendedor_invalido = Vendedor(
-            aliado=self.aliado_1,
+    def test_vendedor_deriva_aliado_correctamente_de_coordinador(self):
+        vendedor = Vendedor.objects.create(
             coordinador=self.coordinador_2,
             documento="1030999888",
-            nombre_completo="Vendedor Inconsistente",
-            correo="invalido@andina.co",
+            nombre_completo="Vendedor Pacífico",
+            correo="pacifico@empresa.co",
             telefono="3209998888",
-            ciudad_base=self.bogota,
+            ciudad_base=self.cali,
             fecha_ingreso=date(2025, 3, 1),
         )
-        with self.assertRaises(ValidationError):
-            vendedor_invalido.full_clean()
+        self.assertEqual(vendedor.aliado, self.aliado_2)
+        self.assertEqual(vendedor.aliado.razon_social, "Distribución Pacífico SAS")
 
     def test_optimistic_update_incrementa_version_y_registra_diff_en_auditlog(self):
         self.aliado_1.registrar_creacion(usuario=self.actor)
@@ -282,7 +276,6 @@ class RedComercialDomainModelTests(TestCase):
 
     def test_cambiar_estado_vendedor_bloqueo_y_restriccion_operativa(self):
         vendedor = Vendedor.objects.create(
-            aliado=self.aliado_1,
             coordinador=self.coordinador_1,
             documento="1040777888",
             nombre_completo="Marcela Torres",
@@ -388,14 +381,13 @@ class RateLimitMiddlewareTests(TestCase):
         RATE_LIMIT_AI_REQUESTS=2,
     )
     def test_modulo_asistente_ia_aplica_limite_estricto_independiente(self):
-        ai_url = reverse("asis_default")
+        ai_url = "/asistente/api/consultar/"
         r1 = self.client.get(ai_url)
-        self.assertEqual(r1.status_code, 200)
+        # La ruta /asistente/api/consultar/ responde 405 a GET pero consume presupuesto de tasa
         self.assertEqual(r1["X-RateLimit-Limit"], "2")
         self.assertEqual(r1["X-RateLimit-Remaining"], "1")
 
         r2 = self.client.get(ai_url)
-        self.assertEqual(r2.status_code, 200)
         self.assertEqual(r2["X-RateLimit-Remaining"], "0")
 
         # Tercera solicitud a /asistente/ debe ser bloqueada con 429 JSON
@@ -489,8 +481,8 @@ class BaseThemeAndRBACTests(TestCase):
         response = self.client.get(reverse("portal_home"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-theme=dark')
-        self.assertContains(response, 'verla.css')
-        self.assertContains(response, 'logo-verla.png')
+        self.assertContains(response, 'verla.')
+        self.assertContains(response, 'logo-verla.')
         self.assertContains(response, 'Simulador de Roles (Demo)')
 
     def test_login_page_renders_styled_form(self):
@@ -540,7 +532,6 @@ class BaseThemeAndRBACTests(TestCase):
         # Usuario vendedor activo
         user_activo = self.user_model.objects.create_user("vend_ok", "ok@test.com", "pass123")
         vendedor_ok = Vendedor.objects.create(
-            aliado=self.aliado,
             coordinador=self.coordinador,
             documento="CC-VEND-OK",
             nombre_completo="Vendedor Operativo",
@@ -563,7 +554,6 @@ class BaseThemeAndRBACTests(TestCase):
         # Usuario vendedor bloqueado
         user_bloq = self.user_model.objects.create_user("vend_bloq", "bloq@test.com", "pass123")
         vendedor_bloq = Vendedor.objects.create(
-            aliado=self.aliado,
             coordinador=self.coordinador,
             documento="CC-VEND-BLOQ",
             nombre_completo="Vendedor Sancionado",
@@ -584,6 +574,162 @@ class BaseThemeAndRBACTests(TestCase):
         self.assertEqual(resp_bloq.status_code, 403)
         self.assertIn("Acceso Comercial Bloqueado", resp_bloq.content.decode())
         self.assertIn("Sanción disciplinaria vigente", resp_bloq.content.decode())
+
+    def test_coordinador_can_view_assigned_ally_and_cities_catalog(self):
+        coord_user = self.user_model.objects.create_user("coord_user", "coord@test.com", "pass123")
+        self.coordinador.usuario = coord_user
+        self.coordinador.save()
+
+        otro_aliado = Aliado.objects.create(
+            nit="900111222-3",
+            razon_social="Aliado Caribe SAS",
+            codigo_contrato="CTR-CARIBE-2026",
+            correo_contacto="info@caribe.com",
+            telefono="3007654321",
+            activo=True,
+        )
+
+        self.client.force_login(coord_user)
+
+        # 1. Coordinador puede ver aliado_list (solo el aliado asignado, con botones de mutación deshabilitados)
+        resp_aliado = self.client.get(reverse("aliado_list"))
+        self.assertEqual(resp_aliado.status_code, 200)
+        self.assertContains(resp_aliado, "Aliado Paisa SAS")
+        self.assertNotContains(resp_aliado, "Aliado Caribe SAS")
+        self.assertNotContains(resp_aliado, reverse("aliado_create"))
+        self.assertContains(resp_aliado, "disabled")
+
+        # 2. Coordinador puede ver ciudad_list (solo lectura, con botones de mutación deshabilitados)
+        resp_ciudad = self.client.get(reverse("ciudad_list"))
+        self.assertEqual(resp_ciudad.status_code, 200)
+        self.assertContains(resp_ciudad, "Medellín")
+        self.assertNotContains(resp_ciudad, reverse("ciudad_create"))
+        self.assertContains(resp_ciudad, "disabled")
+
+    def test_vendedor_home_page_renders_unified_card(self):
+        vend_user = self.user_model.objects.create_user("vend_home", "home@test.com", "pass123")
+        Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-VEND-HOME",
+            nombre_completo="Vendedor Portal",
+            correo="home@test.com",
+            telefono="3000000002",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+            usuario=vend_user,
+        )
+
+        self.client.force_login(vend_user)
+        response = self.client.get(reverse("portal_home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mis Metas & Ofertas Comerciales")
+        self.assertContains(response, "Ingresar a Mis Metas & Ofertas")
+        self.assertNotContains(response, "Ofertas Vigentes")
+
+    def test_aliado_can_view_vendedores_assigned_to_its_coordinators(self):
+        aliado_user = self.user_model.objects.create_user("aliado_paisa_user", "aliado@paisa.com", "pass123")
+        self.aliado.usuario = aliado_user
+        self.aliado.save()
+
+        # Vendedor de Aliado 1 (a través de self.coordinador)
+        vendedor_paisa = Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-VEND-PAISA",
+            nombre_completo="Vendedor Paisa",
+            correo="paisa@test.com",
+            telefono="3001112233",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+
+        # Aliado 2 ajeno con su propio coordinador y vendedor
+        aliado_ajeno = Aliado.objects.create(
+            nit="900555666-7",
+            razon_social="Aliado Ajeno SAS",
+            codigo_contrato="CTR-AJENO-2026",
+            correo_contacto="info@ajeno.com",
+            telefono="3009998877",
+            activo=True,
+        )
+        coord_ajeno = Coordinador.objects.create(
+            aliado=aliado_ajeno,
+            documento="CC-COORD-AJENO",
+            nombre_completo="Coordinador Ajeno",
+            correo="coord@ajeno.com",
+            telefono="3008887766",
+            activo=True,
+        )
+        vendedor_ajeno = Vendedor.objects.create(
+            coordinador=coord_ajeno,
+            documento="CC-VEND-AJENO",
+            nombre_completo="Vendedor Ajeno",
+            correo="ajeno@test.com",
+            telefono="3002223344",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+
+        self.client.force_login(aliado_user)
+        response = self.client.get(reverse("vendedor_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vendedor Paisa")
+        self.assertContains(response, "CC-VEND-PAISA")
+        self.assertNotContains(response, "Vendedor Ajeno")
+        self.assertNotContains(response, "CC-VEND-AJENO")
+
+    def test_unauthorized_action_redirects_to_referer_or_list_instead_of_home(self):
+        aliado_user = self.user_model.objects.create_user("aliado_redir", "aliado@redir.com", "pass123")
+        self.aliado.usuario = aliado_user
+        self.aliado.save()
+
+        vendedor = Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-VEND-REDIR",
+            nombre_completo="Vendedor Redir",
+            correo="redir@test.com",
+            telefono="3001112233",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+
+        self.client.force_login(aliado_user)
+
+        # 1. Con HTTP_REFERER regresa a la lista donde estaba y no al inicio
+        resp_with_referer = self.client.get(
+            reverse("vendedor_update", kwargs={"pk": vendedor.pk}),
+            HTTP_REFERER=reverse("vendedor_list"),
+        )
+        self.assertRedirects(resp_with_referer, reverse("vendedor_list"))
+
+        # 2. Sin HTTP_REFERER regresa a vendedor_list y NO a portal_home
+        resp_without_referer = self.client.get(reverse("vendedor_update", kwargs={"pk": vendedor.pk}))
+        self.assertRedirects(resp_without_referer, reverse("vendedor_list"))
+
+        # 3. Solo cuando el rol no tiene acceso a la vista completa del módulo, redirige a su portal o inicio
+        vend_user = self.user_model.objects.create_user("vend_unauth", "v@unauth.com", "pass123")
+        Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-VEND-UNAUTH",
+            nombre_completo="Vendedor Unauth",
+            correo="v@unauth.com",
+            telefono="3000000009",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+            usuario=vend_user,
+        )
+        self.client.force_login(vend_user)
+        resp_module = self.client.get(reverse("com_default"))
+        self.assertRedirects(resp_module, reverse("op_default"))
 
 
 class RedComercialCRUDAndConcurrencyViewTests(TestCase):
@@ -630,7 +776,7 @@ class RedComercialCRUDAndConcurrencyViewTests(TestCase):
         response = self.client.get(reverse("com_default"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Gobernanza de Red Comercial")
-        self.assertContains(response, "Ciudades Activas")
+        self.assertContains(response, "Ciudades de Cobertura")
         self.assertContains(response, "Aliados Comerciales")
 
     def test_ciudad_crud_and_optimistic_conflict_409(self):
@@ -738,6 +884,22 @@ class RedComercialCRUDAndConcurrencyViewTests(TestCase):
         self.assertEqual(log_bloqueo.accion, AccionAuditoria.BLOQUEO)
         self.assertEqual(log_bloqueo.cambios_json["estado"]["despues"], EstadoVendedor.BLOQUEADO)
 
+    def test_vendedor_update_view_renders_fecha_ingreso_in_html5_format(self):
+        vendedor = Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-DATE-TEST",
+            nombre_completo="Vendedor Date Test",
+            correo="date@test.com",
+            telefono="3009990000",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 4, 15),
+        )
+        response = self.client.get(reverse("vendedor_update", args=[vendedor.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value=2026-04-15')
+
     def test_audit_log_list_view_renders_changes(self):
         # Provocar cambio para tener registros de auditoría
         self.ciudad_cali.optimistic_update(
@@ -749,6 +911,82 @@ class RedComercialCRUDAndConcurrencyViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Bitácora de Auditoría")
         self.assertContains(response, "Ciudad")
+
+    def test_admin_delete_ciudad_success(self):
+        ciudad_nueva = Ciudad.objects.create(codigo="PER", nombre="Pereira", departamento="Risaralda")
+        res = self.client.post(reverse("ciudad_delete", args=[ciudad_nueva.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Ciudad.objects.filter(pk=ciudad_nueva.pk).exists())
+        log = AuditLog.objects.filter(entidad="Ciudad", registro_id=ciudad_nueva.pk, accion=AccionAuditoria.ELIMINACION).first()
+        self.assertIsNotNone(log)
+
+    def test_admin_delete_ciudad_protected_error(self):
+        # Crear vendedor asignado a self.ciudad_cali
+        Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-TEST-CIUDAD-PROT",
+            nombre_completo="Vendedor Ciudad Prot",
+            correo="vendedor_prot@valle.com",
+            telefono="3009998877",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+        res = self.client.post(reverse("ciudad_delete", args=[self.ciudad_cali.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(Ciudad.objects.filter(pk=self.ciudad_cali.pk).exists())
+        self.assertContains(res, "No se puede eliminar la ciudad")
+
+    def test_admin_delete_aliado_success_and_protected(self):
+        # Aliado sin dependencias
+        aliado_libre = Aliado.objects.create(
+            nit="800999000-1",
+            razon_social="Aliado Libre SAS",
+            codigo_contrato="CTR-LIB-01",
+            correo_contacto="libre@aliado.com",
+            telefono="3000000000",
+        )
+        res = self.client.post(reverse("aliado_delete", args=[aliado_libre.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Aliado.objects.filter(pk=aliado_libre.pk).exists())
+        self.assertTrue(AuditLog.objects.filter(entidad="Aliado", registro_id=aliado_libre.pk, accion=AccionAuditoria.ELIMINACION).exists())
+
+        # self.aliado tiene a self.coordinador asociado -> ProtectedError
+        res_prot = self.client.post(reverse("aliado_delete", args=[self.aliado.pk]), follow=True)
+        self.assertEqual(res_prot.status_code, 200)
+        self.assertTrue(Aliado.objects.filter(pk=self.aliado.pk).exists())
+        self.assertContains(res_prot, "No se puede eliminar el aliado")
+
+    def test_admin_delete_coordinador_success_and_protected(self):
+        coord_libre = Coordinador.objects.create(
+            aliado=self.aliado,
+            documento="CC-998877",
+            nombre_completo="Coordinador Sin Vendedores",
+            correo="libre@coord.com",
+            telefono="3119998877",
+        )
+        res = self.client.post(reverse("coordinador_delete", args=[coord_libre.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Coordinador.objects.filter(pk=coord_libre.pk).exists())
+        self.assertTrue(AuditLog.objects.filter(entidad="Coordinador", registro_id=coord_libre.pk, accion=AccionAuditoria.ELIMINACION).exists())
+
+        # self.coordinador supervisa a un vendedor -> ProtectedError
+        Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-TEST-COORD-PROT",
+            nombre_completo="Vendedor Coord Prot",
+            correo="vendedor_coord@valle.com",
+            telefono="3009998878",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+        res_prot = self.client.post(reverse("coordinador_delete", args=[self.coordinador.pk]), follow=True)
+        self.assertEqual(res_prot.status_code, 200)
+        self.assertTrue(Coordinador.objects.filter(pk=self.coordinador.pk).exists())
+        self.assertContains(res_prot, "No se puede eliminar el coordinador")
 
 
 

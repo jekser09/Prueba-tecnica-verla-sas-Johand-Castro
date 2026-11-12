@@ -30,16 +30,16 @@
       {{ form.version }}
 
       <div class="grid">
-        <label for="{{ form.aliado.id_for_label }}">
-          Aliado Titular *
-          {{ form.aliado }}
-          {% if form.aliado.errors %}<small style="color:var(--verla-status-blocked)">{{ form.aliado.errors.0 }}</small>{% endif %}
-        </label>
-
         <label for="{{ form.coordinador.id_for_label }}">
-          Coordinador Responsable *
+          Coordinador Responsable (determina el Aliado) *
           {{ form.coordinador }}
           {% if form.coordinador.errors %}<small style="color:var(--verla-status-blocked)">{{ form.coordinador.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.cargo.id_for_label }}">
+          Cargo *
+          {{ form.cargo }}
+          {% if form.cargo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.cargo.errors.0 }}</small>{% endif %}
         </label>
       </div>
 
@@ -72,26 +72,20 @@
       </div>
 
       <div class="grid">
-        <label for="{{ form.cargo.id_for_label }}">
-          Cargo *
-          {{ form.cargo }}
-          {% if form.cargo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.cargo.errors.0 }}</small>{% endif %}
-        </label>
-
         <label for="{{ form.fecha_ingreso.id_for_label }}">
           Fecha de Ingreso *
           {{ form.fecha_ingreso }}
           {% if form.fecha_ingreso.errors %}<small style="color:var(--verla-status-blocked)">{{ form.fecha_ingreso.errors.0 }}</small>{% endif %}
         </label>
-      </div>
 
-      <div class="grid">
         <label for="{{ form.ciudad_base.id_for_label }}">
           Ciudad Base *
           {{ form.ciudad_base }}
           {% if form.ciudad_base.errors %}<small style="color:var(--verla-status-blocked)">{{ form.ciudad_base.errors.0 }}</small>{% endif %}
         </label>
+      </div>
 
+      <div class="grid">
         <label for="{{ form.ciudades_operacion.id_for_label }}">
           Ciudades de Cobertura / Operación (Ctrl+clic multiselección)
           {{ form.ciudades_operacion }}

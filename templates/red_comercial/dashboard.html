@@ -9,36 +9,71 @@
       <h1>Gobernanza de Red Comercial</h1>
       <p style="color: var(--verla-text-muted);">Supervisión de aliados, coordinadores, vendedores y cobertura de ciudades.</p>
     </div>
-    {% if actor.es_admin or actor.es_aliado %}
+    {% if actor.es_admin %}
       <div>
         <a href="{% url 'audit_log_list' %}" role="button" class="outline contrast" style="font-size: 0.85rem;">📋 Ver Historial de Auditoría</a>
       </div>
     {% endif %}
   </div>
 
-  <div class="grid" style="margin-bottom: 2rem;">
-    <article>
-      <header><strong>Ciudades Activas</strong></header>
-      <h2>{{ total_ciudades }}</h2>
-      <footer><a href="{% url 'ciudad_list' %}" role="button" class="contrast outline">Ver Ciudades</a></footer>
-    </article>
-    <article>
-      <header><strong>Aliados Comerciales</strong></header>
-      <h2>{{ total_aliados }}</h2>
-      <footer><a href="{% url 'aliado_list' %}" role="button" class="contrast outline">Ver Aliados</a></footer>
-    </article>
-    <article>
-      <header><strong>Coordinadores</strong></header>
-      <h2>{{ total_coordinadores }}</h2>
-      <footer><a href="{% url 'coordinador_list' %}" role="button" class="contrast outline">Ver Coordinadores</a></footer>
-    </article>
-    <article>
-      <header><strong>Fuerza de Ventas</strong></header>
-      <div>
-        <p style="margin: 0;"><span class="badge-status activo">Activos: {{ vendedores_activos }}</span></p>
-        <p style="margin: 0.4rem 0 0;"><span class="badge-status bloqueado">Bloqueados: {{ vendedores_bloqueados }}</span></p>
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    <article style="display: flex; flex-direction: column; justify-content: space-between; border-top: 3px solid var(--verla-brand-indigo);">
+      <header>
+        <span style="font-size: 1.5rem; margin-right: 0.4rem;">📍</span>
+        <strong>Ciudades de Cobertura</strong>
+      </header>
+      <div style="margin: 0.5rem 0;">
+        <h2 style="margin-bottom: 0.2rem; color: var(--verla-brand-indigo-hover);">{{ total_ciudades }}</h2>
+        <p style="font-size: 0.85rem; color: var(--verla-text-muted); margin: 0;">Gestión de municipios y regiones autorizadas para la red.</p>
       </div>
-      <footer><a href="{% url 'vendedor_list' %}" role="button" class="contrast">Gestionar Vendedores</a></footer>
+      <footer>
+        <a href="{% url 'ciudad_list' %}" role="button" class="contrast outline" style="width: 100%; text-align: center;">{% if actor.es_admin %}Gestionar Ciudades{% else %}Ver Ciudades{% endif %}</a>
+      </footer>
+    </article>
+
+    <article style="display: flex; flex-direction: column; justify-content: space-between; border-top: 3px solid var(--verla-brand-indigo);">
+      <header>
+        <span style="font-size: 1.5rem; margin-right: 0.4rem;">🏢</span>
+        <strong>Aliados Comerciales</strong>
+      </header>
+      <div style="margin: 0.5rem 0;">
+        <h2 style="margin-bottom: 0.2rem; color: var(--verla-brand-indigo-hover);">{{ total_aliados }}</h2>
+        <p style="font-size: 0.85rem; color: var(--verla-text-muted); margin: 0;">Gestión de aliados estratégicos, contratos y estados.</p>
+      </div>
+      <footer>
+        <a href="{% url 'aliado_list' %}" role="button" class="contrast outline" style="width: 100%; text-align: center;">{% if actor.es_admin %}Gestionar Aliados{% else %}Ver Aliado{% endif %}</a>
+      </footer>
+    </article>
+
+    <article style="display: flex; flex-direction: column; justify-content: space-between; border-top: 3px solid var(--verla-brand-indigo);">
+      <header>
+        <span style="font-size: 1.5rem; margin-right: 0.4rem;">👥</span>
+        <strong>Coordinadores</strong>
+      </header>
+      <div style="margin: 0.5rem 0;">
+        <h2 style="margin-bottom: 0.2rem; color: var(--verla-brand-indigo-hover);">{{ total_coordinadores }}</h2>
+        <p style="font-size: 0.85rem; color: var(--verla-text-muted); margin: 0;">Supervisores directos de la fuerza de ventas asignada.</p>
+      </div>
+      <footer>
+        <a href="{% url 'coordinador_list' %}" role="button" class="contrast outline" style="width: 100%; text-align: center;">Gestionar Coordinadores</a>
+      </footer>
+    </article>
+
+    <article style="display: flex; flex-direction: column; justify-content: space-between; border-top: 3px solid var(--verla-brand-indigo);">
+      <header>
+        <span style="font-size: 1.5rem; margin-right: 0.4rem;">💼</span>
+        <strong>Fuerza de Ventas</strong>
+      </header>
+      <div style="margin: 0.5rem 0;">
+        <p style="font-size: 0.85rem; color: var(--verla-text-muted); margin-bottom: 0.5rem;">Censo y control de vendedores en campo:</p>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <span class="badge-status activo">Activos: {{ vendedores_activos }}</span>
+          <span class="badge-status bloqueado">Bloqueados: {{ vendedores_bloqueados }}</span>
+        </div>
+      </div>
+      <footer>
+        <a href="{% url 'vendedor_list' %}" role="button" class="contrast" style="width: 100%; text-align: center;">Gestionar Vendedores</a>
+      </footer>
     </article>
   </div>
 </section>

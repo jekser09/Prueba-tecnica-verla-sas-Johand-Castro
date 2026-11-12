@@ -6,17 +6,20 @@ from typing import Any
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Sum
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from operacion.forms import MetaMensualForm, OfertaPeriodoForm
 from operacion.models import MetaMensual, OfertaPeriodo
 from red_comercial.models import (
     AccionAuditoria,
     Aliado,
+    AuditLog,
     ConcurrentModificationError,
     Coordinador,
     EstadoVendedor,
@@ -37,17 +40,48 @@ def operacion_dashboard_view(request: HttpRequest) -> HttpResponse:
     con drill-down y acceso a creación de ofertas/metas.
     """
     perfil = obtener_perfil_actor(request.user)
-    periodo_actual = request.GET.get("periodo") or timezone.now().strftime("%Y-%m")
+    # Soporte para filtro por año y mes independientes o parámetro 'periodo' unificado
+    anio_param = request.GET.get("anio")
+    mes_param = request.GET.get("mes")
+    if anio_param and mes_param:
+        periodo_actual = f"{anio_param.strip()}-{mes_param.strip().zfill(2)}"
+    else:
+        periodo_actual = request.GET.get("periodo") or timezone.now().strftime("%Y-%m")
+
+    # Extraer año y mes actuales para los selectores
+    try:
+        partes_periodo = periodo_actual.split("-")
+        sel_anio = partes_periodo[0]
+        sel_mes = partes_periodo[1]
+    except Exception:
+        sel_anio = timezone.now().strftime("%Y")
+        sel_mes = timezone.now().strftime("%m")
+
+    meses_opciones = [
+        ("01", "Enero"),
+        ("02", "Febrero"),
+        ("03", "Marzo"),
+        ("04", "Abril"),
+        ("05", "Mayo"),
+        ("06", "Junio"),
+        ("07", "Julio"),
+        ("08", "Agosto"),
+        ("09", "Septiembre"),
+        ("10", "Octubre"),
+        ("11", "Noviembre"),
+        ("12", "Diciembre"),
+    ]
+    anios_opciones = ["2025", "2026", "2027"]
 
     # Si es vendedor, renderizar la vista especializada de vendedor
     if perfil["es_vendedor"]:
         return mis_metas_y_ofertas_vendedor_view(request, perfil["objeto"], periodo_actual)
 
     # Filtrar metas según el alcance del rol
-    metas_qs = MetaMensual.objects.select_related("vendedor__aliado", "vendedor__coordinador", "vendedor__ciudad_base").filter(periodo=periodo_actual)
+    metas_qs = MetaMensual.objects.select_related("vendedor__coordinador__aliado", "vendedor__coordinador", "vendedor__ciudad_base").filter(periodo=periodo_actual)
 
     if perfil["es_aliado"]:
-        metas_qs = metas_qs.filter(vendedor__aliado=perfil["objeto"])
+        metas_qs = metas_qs.filter(vendedor__coordinador__aliado=perfil["objeto"])
     elif perfil["es_coordinador"]:
         metas_qs = metas_qs.filter(vendedor__coordinador=perfil["objeto"])
 
@@ -62,7 +96,9 @@ def operacion_dashboard_view(request: HttpRequest) -> HttpResponse:
     # Agregaciones estructuradas
     resumen_coordinadores = MetaMensual.resumen_por_coordinador(periodo_actual)
     if perfil["es_aliado"]:
-        resumen_coordinadores = resumen_coordinadores.filter(vendedor__aliado=perfil["objeto"])
+        resumen_coordinadores = resumen_coordinadores.filter(vendedor__coordinador__aliado=perfil["objeto"])
+    elif perfil["es_coordinador"]:
+        resumen_coordinadores = resumen_coordinadores.filter(vendedor__coordinador=perfil["objeto"])
 
     resumen_aliados = MetaMensual.resumen_por_aliado(periodo_actual) if perfil["es_admin"] else None
 
@@ -70,9 +106,16 @@ def operacion_dashboard_view(request: HttpRequest) -> HttpResponse:
     ofertas_qs = OfertaPeriodo.objects.filter(periodo=periodo_actual, activa=True).order_by("-fecha_inicio")
     if perfil["es_aliado"]:
         ofertas_qs = ofertas_qs.filter(aliado__in=[None, perfil["objeto"]])
+    elif perfil["es_coordinador"]:
+        # El coordinador solo ve ofertas generales o las de su aliado
+        ofertas_qs = ofertas_qs.filter(aliado__in=[None, perfil["objeto"].aliado])
 
     context = {
         "periodo_actual": periodo_actual,
+        "sel_anio": sel_anio,
+        "sel_mes": sel_mes,
+        "meses_opciones": meses_opciones,
+        "anios_opciones": anios_opciones,
         "total_meta": total_meta,
         "total_real": total_real,
         "porcentaje_global": porcentaje_global,
@@ -111,25 +154,32 @@ def mis_metas_y_ofertas_vendedor_view(request: HttpRequest, vendedor: Vendedor, 
 # CRUD METAS MENSUALES (CONCURRENCIA OPTIMISTA 409)
 # ==============================================================================
 
-@requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
+@requerir_roles("ADMIN", "COORDINADOR")
 def meta_mensual_create_view(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
-        form = MetaMensualForm(request.POST)
+        form = MetaMensualForm(request.POST, user=request.user)
         if form.is_valid():
             meta = form.save()
             messages.success(request, f"Meta registrada para {meta.vendedor.nombre_completo} ({meta.periodo}).")
             return redirect(reverse("op_default") + f"?periodo={meta.periodo}")
     else:
         initial_periodo = request.GET.get("periodo") or timezone.now().strftime("%Y-%m")
-        form = MetaMensualForm(initial={"periodo": initial_periodo})
+        form = MetaMensualForm(initial={"periodo": initial_periodo}, user=request.user)
     return render(request, "operacion/meta_form.html", {"form": form, "titulo": "Asignar Meta Mensual"})
 
 
-@requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
+@requerir_roles("ADMIN", "COORDINADOR")
 def meta_mensual_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     meta = get_object_or_404(MetaMensual, pk=pk)
+    perfil = obtener_perfil_actor(request.user)
+
+    # El coordinador solo puede editar metas de vendedores que él mismo supervisa
+    if perfil["es_coordinador"] and meta.vendedor.coordinador_id != perfil["objeto"].pk:
+        messages.error(request, "No tiene autorización para modificar metas de otra coordinación.")
+        return redirect(reverse("op_default"))
+
     if request.method == "POST":
-        form = MetaMensualForm(request.POST, instance=meta)
+        form = MetaMensualForm(request.POST, instance=meta, user=request.user)
         expected_version = int(request.POST.get("version", meta.version))
         if form.is_valid():
             try:
@@ -147,7 +197,7 @@ def meta_mensual_update_view(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect(reverse("op_default") + f"?periodo={meta.periodo}")
             except ConcurrentModificationError as e:
                 meta.refresh_from_db()
-                form = MetaMensualForm(instance=meta)
+                form = MetaMensualForm(instance=meta, user=request.user)
                 return render(
                     request,
                     "operacion/meta_form.html",
@@ -155,7 +205,7 @@ def meta_mensual_update_view(request: HttpRequest, pk: int) -> HttpResponse:
                     status=409,
                 )
     else:
-        form = MetaMensualForm(instance=meta)
+        form = MetaMensualForm(instance=meta, user=request.user)
     return render(request, "operacion/meta_form.html", {"form": form, "titulo": f"Editar Meta: {meta.vendedor.nombre_completo}", "meta": meta})
 
 
@@ -221,3 +271,45 @@ def oferta_periodo_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     else:
         form = OfertaPeriodoForm(instance=oferta)
     return render(request, "operacion/oferta_form.html", {"form": form, "titulo": f"Editar Oferta: {oferta.titulo}", "oferta": oferta})
+
+
+@require_POST
+@requerir_roles("ADMIN", "ALIADO")
+def oferta_periodo_cancel_delete_view(request: HttpRequest, pk: int) -> HttpResponseRedirect:
+    oferta = get_object_or_404(OfertaPeriodo, pk=pk)
+    perfil = obtener_perfil_actor(request.user)
+
+    # Si es ALIADO, validar que la oferta pertenezca a su red (o sea global creada en su alcance)
+    if perfil.get("es_aliado") and oferta.aliado_id:
+        aliado_obj = perfil.get("objeto")
+        if aliado_obj and oferta.aliado_id != aliado_obj.pk:
+            messages.error(request, "No tiene permisos para cancelar o eliminar ofertas de otro aliado comercial.")
+            return redirect(reverse("op_default") + f"?periodo={oferta.periodo}")
+
+    periodo = oferta.periodo
+    titulo = oferta.titulo
+
+    # Se realiza soft delete (cancelación: activa=False) o hard delete si ya estaba inactiva
+    action_type = request.POST.get("action_type", "cancelar")
+    with transaction.atomic():
+        if action_type == "eliminar":
+            AuditLog.objects.create(
+                entidad="OfertaPeriodo",
+                registro_id=oferta.pk,
+                accion=AccionAuditoria.ELIMINACION,
+                usuario=request.user if getattr(request.user, "is_authenticated", False) else None,
+                cambios_json={"titulo": oferta.titulo, "periodo": oferta.periodo, "activa": oferta.activa},
+                version_resultante=oferta.version,
+            )
+            oferta.delete()
+            messages.success(request, f"Oferta '{titulo}' eliminada permanentemente.")
+        else:
+            oferta.optimistic_update(
+                expected_version=oferta.version,
+                usuario=request.user,
+                accion=AccionAuditoria.CAMBIO_ESTADO,
+                activa=False,
+            )
+            messages.success(request, f"Oferta '{titulo}' cancelada y desactivada exitosamente.")
+
+    return redirect(reverse("op_default") + f"?periodo={periodo}")

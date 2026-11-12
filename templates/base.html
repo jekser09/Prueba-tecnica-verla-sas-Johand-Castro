@@ -59,10 +59,13 @@
       <ul>
         {% if request.user.is_authenticated %}
           <li><a href="{% url 'portal_home' %}">Inicio</a></li>
-          {% if actor.es_admin or actor.es_aliado or actor.es_coordinador %}
+          {% if actor.es_admin %}
             <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
             <li><a href="{% url 'op_default' %}">Metas & Ofertas</a></li>
-            <li><a href="{% url 'asis_default' %}">Asistente IA</a></li>
+            <li><a href="{% url 'asis_default' %}">Auditoria Asistente</a></li>
+          {% elif actor.es_aliado or actor.es_coordinador %}
+            <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+            <li><a href="{% url 'op_default' %}">Metas & Ofertas</a></li>
           {% elif actor.es_vendedor %}
             <li><a href="{% url 'op_default' %}">Mis Metas & Ofertas</a></li>
           {% endif %}
@@ -102,87 +105,16 @@
     </small>
   </footer>
 
+  <!-- Copiloto IA Global Omnipresente (Widget Flotante) -->
+  {% include "core/asistente_widget.html" %}
+
   <!-- SweetAlert2 JS via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- Modular Scripts -->
+  <script src="{% static 'js/verla-alerts.js' %}"></script>
+  <script src="{% static 'js/formatters.js' %}"></script>
+  <script src="{% static 'js/copilot-widget.js' %}"></script>
   <script>
-    // Puente unificado de alertas en Vanilla JS con integración a la paleta VERLA
-    window.VerlaAlert = {
-      toast: function(icon, title) {
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: icon,
-          title: title,
-          showConfirmButton: false,
-          timer: 3500,
-          timerProgressBar: true,
-          background: '#11102E',
-          color: '#F4F4FB',
-        });
-      },
-      success: function(title, text) {
-        return Swal.fire({
-          icon: 'success',
-          title: title,
-          text: text,
-          confirmButtonColor: '#3B33BC',
-          background: '#11102E',
-          color: '#F4F4FB',
-        });
-      },
-      error: function(title, text) {
-        return Swal.fire({
-          icon: 'error',
-          title: title,
-          text: text,
-          confirmButtonColor: '#3B33BC',
-          background: '#11102E',
-          color: '#F4F4FB',
-        });
-      },
-      warning: function(title, text) {
-        return Swal.fire({
-          icon: 'warning',
-          title: title,
-          text: text,
-          confirmButtonColor: '#3B33BC',
-          background: '#11102E',
-          color: '#F4F4FB',
-        });
-      },
-      confirm: function(title, text, confirmButtonText = 'Confirmar') {
-        return Swal.fire({
-          icon: 'warning',
-          title: title,
-          text: text,
-          showCancelButton: true,
-          confirmButtonColor: '#3B33BC',
-          cancelButtonColor: '#EF4444',
-          confirmButtonText: confirmButtonText,
-          cancelButtonText: 'Cancelar',
-          background: '#11102E',
-          color: '#F4F4FB',
-        });
-      },
-      conflict: function(mensaje) {
-        return Swal.fire({
-          icon: 'warning',
-          title: 'Conflicto de Concurrencia (409)',
-          html: `<p>${mensaje || 'El registro fue modificado por otro usuario en paralelo.'}</p><small style="color:#A09EC7">Para evitar sobreescribir datos ajenos, recargue la página.</small>`,
-          confirmButtonColor: '#3B33BC',
-          confirmButtonText: 'Recargar página',
-          showCancelButton: true,
-          cancelButtonText: 'Cerrar',
-          background: '#11102E',
-          color: '#F4F4FB',
-        }).then((result) => {
-          if (result.isConfirmed) {
-            window.location.reload();
-          }
-        });
-      }
-    };
-
     // Auto-disparo de mensajes de Django a través de SweetAlert2
     document.addEventListener('DOMContentLoaded', function() {
       {% if messages %}

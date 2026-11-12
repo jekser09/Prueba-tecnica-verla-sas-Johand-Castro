@@ -81,12 +81,12 @@ class MetaMensual(VersionedModel):
         """Agrega metas y resultados reales por coordinador para un periodo dado."""
         qs = cls.objects.filter(periodo=periodo)
         if aliado_id is not None:
-            qs = qs.filter(vendedor__aliado_id=aliado_id)
+            qs = qs.filter(vendedor__coordinador__aliado_id=aliado_id)
         return (
             qs.values(
                 "vendedor__coordinador_id",
                 "vendedor__coordinador__nombre_completo",
-                "vendedor__aliado__razon_social",
+                "vendedor__coordinador__aliado__razon_social",
             )
             .annotate(
                 total_meta=Sum("meta_valor"),
@@ -101,14 +101,14 @@ class MetaMensual(VersionedModel):
         return (
             cls.objects.filter(periodo=periodo)
             .values(
-                "vendedor__aliado_id",
-                "vendedor__aliado__razon_social",
+                "vendedor__coordinador__aliado_id",
+                "vendedor__coordinador__aliado__razon_social",
             )
             .annotate(
                 total_meta=Sum("meta_valor"),
                 total_resultado=Sum("resultado_real"),
             )
-            .order_by("vendedor__aliado__razon_social")
+            .order_by("vendedor__coordinador__aliado__razon_social")
         )
 
 
@@ -184,13 +184,16 @@ class OfertaPeriodo(VersionedModel):
         if vendedor.ciudad_base_id:
             ciudades_ids.add(vendedor.ciudad_base_id)
 
+        aliado_obj = vendedor.aliado
+        aliado_id = aliado_obj.id if aliado_obj else None
+
         return (
             cls.objects.filter(
                 activa=True,
                 fecha_inicio__lte=fecha_consulta,
                 fecha_fin__gte=fecha_consulta,
             )
-            .filter(Q(aliado__isnull=True) | Q(aliado_id=vendedor.aliado_id))
+            .filter(Q(aliado__isnull=True) | Q(aliado_id=aliado_id))
             .filter(Q(ciudades__isnull=True) | Q(ciudades__in=ciudades_ids) | Q(ciudades=None))
             .distinct()
         )

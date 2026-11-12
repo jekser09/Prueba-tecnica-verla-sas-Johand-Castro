@@ -4,9 +4,12 @@ from typing import Any
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import models, transaction
+from django.db.models import ProtectedError
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from red_comercial.forms import AliadoForm, CiudadForm, CoordinadorForm, VendedorForm
 from red_comercial.models import (
@@ -19,17 +22,36 @@ from red_comercial.models import (
     EstadoVendedor,
     Vendedor,
 )
-from red_comercial.rbac import requerir_roles
+from red_comercial.rbac import obtener_perfil_actor, requerir_roles
 
 
 @requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
 def red_comercial_dashboard_view(request: HttpRequest) -> HttpResponse:
-    """Dashboard general y accesos de administración de la Red Comercial."""
-    total_ciudades = Ciudad.objects.count()
-    total_aliados = Aliado.objects.count()
-    total_coordinadores = Coordinador.objects.count()
-    vendedores_activos = Vendedor.objects.filter(estado=EstadoVendedor.ACTIVO).count()
-    vendedores_bloqueados = Vendedor.objects.filter(estado=EstadoVendedor.BLOQUEADO).count()
+    """Dashboard general y accesos de administración de la Red Comercial con aislamiento de datos por rol."""
+    perfil = obtener_perfil_actor(request.user)
+
+    if perfil["es_admin"]:
+        total_ciudades = Ciudad.objects.count()
+        total_aliados = Aliado.objects.count()
+        total_coordinadores = Coordinador.objects.count()
+        vendedores_activos = Vendedor.objects.filter(estado=EstadoVendedor.ACTIVO).count()
+        vendedores_bloqueados = Vendedor.objects.filter(estado=EstadoVendedor.BLOQUEADO).count()
+    elif perfil["es_aliado"]:
+        aliado = perfil["objeto"]
+        total_ciudades = Ciudad.objects.filter(activa=True).count()
+        total_aliados = 1
+        total_coordinadores = Coordinador.objects.filter(aliado=aliado).count()
+        vendedores_activos = Vendedor.objects.filter(coordinador__aliado=aliado, estado=EstadoVendedor.ACTIVO).count()
+        vendedores_bloqueados = Vendedor.objects.filter(coordinador__aliado=aliado, estado=EstadoVendedor.BLOQUEADO).count()
+    elif perfil["es_coordinador"]:
+        coordinador = perfil["objeto"]
+        total_ciudades = Ciudad.objects.filter(activa=True).count()
+        total_aliados = 1
+        total_coordinadores = 1
+        vendedores_activos = Vendedor.objects.filter(coordinador=coordinador, estado=EstadoVendedor.ACTIVO).count()
+        vendedores_bloqueados = Vendedor.objects.filter(coordinador=coordinador, estado=EstadoVendedor.BLOQUEADO).count()
+    else:
+        total_ciudades = total_aliados = total_coordinadores = vendedores_activos = vendedores_bloqueados = 0
 
     context = {
         "total_ciudades": total_ciudades,
@@ -45,7 +67,7 @@ def red_comercial_dashboard_view(request: HttpRequest) -> HttpResponse:
 # CRUD CIUDADES
 # ==============================================================================
 
-@requerir_roles("ADMIN", "ALIADO")
+@requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
 def ciudad_list_view(request: HttpRequest) -> HttpResponse:
     ciudades = Ciudad.objects.all().order_by("nombre")
     return render(request, "red_comercial/ciudad_list.html", {"ciudades": ciudades})
@@ -97,13 +119,49 @@ def ciudad_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "red_comercial/ciudad_form.html", {"form": form, "titulo": f"Editar {ciudad.nombre}", "ciudad": ciudad})
 
 
+@require_POST
+@requerir_roles("ADMIN")
+def ciudad_delete_view(request: HttpRequest, pk: int) -> HttpResponseRedirect:
+    ciudad = get_object_or_404(Ciudad, pk=pk)
+    nombre = ciudad.nombre
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(
+                entidad="Ciudad",
+                registro_id=ciudad.pk,
+                accion=AccionAuditoria.ELIMINACION,
+                usuario=request.user if getattr(request.user, "is_authenticated", False) else None,
+                cambios_json={"codigo": ciudad.codigo, "nombre": ciudad.nombre, "departamento": ciudad.departamento},
+                version_resultante=ciudad.version,
+            )
+            ciudad.delete()
+        messages.success(request, f"Ciudad '{nombre}' eliminada con éxito.")
+    except ProtectedError:
+        messages.error(
+            request,
+            f"No se puede eliminar la ciudad '{nombre}' porque tiene registros vinculados (vendedores u operaciones asociadas)."
+        )
+    return redirect(reverse("ciudad_list"))
+
+
 # ==============================================================================
 # CRUD ALIADOS
 # ==============================================================================
 
-@requerir_roles("ADMIN", "ALIADO")
+@requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
 def aliado_list_view(request: HttpRequest) -> HttpResponse:
-    aliados = Aliado.objects.all().order_by("razon_social")
+    perfil = obtener_perfil_actor(request.user)
+    if perfil["es_admin"]:
+        aliados = Aliado.objects.all().order_by("razon_social")
+    elif perfil["es_aliado"]:
+        # Un Aliado comercial solo visualiza su propia entidad
+        aliados = Aliado.objects.filter(pk=perfil["objeto"].pk)
+    elif perfil["es_coordinador"]:
+        # El coordinador visualiza el aliado al que está asignado (solo lectura)
+        coordinador = perfil["objeto"]
+        aliados = Aliado.objects.filter(pk=coordinador.aliado_id)
+    else:
+        aliados = Aliado.objects.none()
     return render(request, "red_comercial/aliado_list.html", {"aliados": aliados})
 
 
@@ -155,17 +213,50 @@ def aliado_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "red_comercial/aliado_form.html", {"form": form, "titulo": f"Editar {aliado.razon_social}", "aliado": aliado})
 
 
+@require_POST
+@requerir_roles("ADMIN")
+def aliado_delete_view(request: HttpRequest, pk: int) -> HttpResponseRedirect:
+    aliado = get_object_or_404(Aliado, pk=pk)
+    razon = aliado.razon_social
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(
+                entidad="Aliado",
+                registro_id=aliado.pk,
+                accion=AccionAuditoria.ELIMINACION,
+                usuario=request.user if getattr(request.user, "is_authenticated", False) else None,
+                cambios_json={"nit": aliado.nit, "razon_social": aliado.razon_social, "codigo_contrato": aliado.codigo_contrato},
+                version_resultante=aliado.version,
+            )
+            aliado.delete()
+        messages.success(request, f"Aliado comercial '{razon}' eliminado con éxito.")
+    except ProtectedError:
+        messages.error(
+            request,
+            f"No se puede eliminar el aliado '{razon}' porque tiene coordinadores, vendedores u operaciones asociadas."
+        )
+    return redirect(reverse("aliado_list"))
+
+
 # ==============================================================================
 # CRUD COORDINADORES
 # ==============================================================================
 
 @requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
 def coordinador_list_view(request: HttpRequest) -> HttpResponse:
-    coordinadores = Coordinador.objects.select_related("aliado").all().order_by("nombre_completo")
+    perfil = obtener_perfil_actor(request.user)
+    if perfil["es_admin"]:
+        coordinadores = Coordinador.objects.select_related("aliado").all().order_by("nombre_completo")
+    elif perfil["es_aliado"]:
+        # El Aliado solo ve a los coordinadores adscritos a su contrato
+        coordinadores = Coordinador.objects.select_related("aliado").filter(aliado=perfil["objeto"]).order_by("nombre_completo")
+    else:
+        # El Coordinador solo ve su propia ficha
+        coordinadores = Coordinador.objects.select_related("aliado").filter(pk=perfil["objeto"].pk)
     return render(request, "red_comercial/coordinador_list.html", {"coordinadores": coordinadores})
 
 
-@requerir_roles("ADMIN", "ALIADO")
+@requerir_roles("ADMIN")
 def coordinador_create_view(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = CoordinadorForm(request.POST)
@@ -178,7 +269,7 @@ def coordinador_create_view(request: HttpRequest) -> HttpResponse:
     return render(request, "red_comercial/coordinador_form.html", {"form": form, "titulo": "Nuevo Coordinador"})
 
 
-@requerir_roles("ADMIN", "ALIADO")
+@requerir_roles("ADMIN")
 def coordinador_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     coordinador = get_object_or_404(Coordinador, pk=pk)
     if request.method == "POST":
@@ -213,16 +304,48 @@ def coordinador_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "red_comercial/coordinador_form.html", {"form": form, "titulo": f"Editar {coordinador.nombre_completo}", "coordinador": coordinador})
 
 
+@require_POST
+@requerir_roles("ADMIN")
+def coordinador_delete_view(request: HttpRequest, pk: int) -> HttpResponseRedirect:
+    coordinador = get_object_or_404(Coordinador, pk=pk)
+    nombre = coordinador.nombre_completo
+    try:
+        with transaction.atomic():
+            AuditLog.objects.create(
+                entidad="Coordinador",
+                registro_id=coordinador.pk,
+                accion=AccionAuditoria.ELIMINACION,
+                usuario=request.user if getattr(request.user, "is_authenticated", False) else None,
+                cambios_json={"documento": coordinador.documento, "nombre_completo": coordinador.nombre_completo, "aliado_id": coordinador.aliado_id},
+                version_resultante=coordinador.version,
+            )
+            coordinador.delete()
+        messages.success(request, f"Coordinador '{nombre}' eliminado con éxito.")
+    except ProtectedError:
+        messages.error(
+            request,
+            f"No se puede eliminar el coordinador '{nombre}' porque tiene vendedores supervisados asignados."
+        )
+    return redirect(reverse("coordinador_list"))
+
+
 # ==============================================================================
 # CRUD VENDEDORES & GOBERNANZA DE ESTADOS
 # ==============================================================================
 
 @requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
 def vendedor_list_view(request: HttpRequest) -> HttpResponse:
+    perfil = obtener_perfil_actor(request.user)
     filtro_estado = request.GET.get("estado", "")
     filtro_q = request.GET.get("q", "").strip()
 
-    vendedores_qs = Vendedor.objects.select_related("aliado", "coordinador", "ciudad_base").prefetch_related("ciudades_operacion").all()
+    vendedores_qs = Vendedor.objects.select_related("coordinador__aliado", "coordinador", "ciudad_base").prefetch_related("ciudades_operacion").all()
+
+    # Aislamiento estricto de datos según rol
+    if perfil["es_aliado"]:
+        vendedores_qs = vendedores_qs.filter(coordinador__aliado=perfil["objeto"])
+    elif perfil["es_coordinador"]:
+        vendedores_qs = vendedores_qs.filter(coordinador=perfil["objeto"])
 
     if filtro_estado:
         vendedores_qs = vendedores_qs.filter(estado=filtro_estado)
@@ -237,24 +360,31 @@ def vendedor_list_view(request: HttpRequest) -> HttpResponse:
     )
 
 
-@requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
+@requerir_roles("ADMIN", "COORDINADOR")
 def vendedor_create_view(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
-        form = VendedorForm(request.POST)
+        form = VendedorForm(request.POST, user=request.user)
         if form.is_valid():
             vendedor = form.save()
             messages.success(request, f"Vendedor '{vendedor.nombre_completo}' registrado exitosamente.")
             return redirect(reverse("vendedor_list"))
     else:
-        form = VendedorForm()
+        form = VendedorForm(user=request.user)
     return render(request, "red_comercial/vendedor_form.html", {"form": form, "titulo": "Registrar Nuevo Vendedor"})
 
 
-@requerir_roles("ADMIN", "ALIADO", "COORDINADOR")
+@requerir_roles("ADMIN", "COORDINADOR")
 def vendedor_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     vendedor = get_object_or_404(Vendedor, pk=pk)
+    perfil = obtener_perfil_actor(request.user)
+
+    # El coordinador solo puede editar vendedores que él mismo supervisa
+    if perfil["es_coordinador"] and vendedor.coordinador_id != perfil["objeto"].pk:
+        messages.error(request, "No tiene autorización para modificar vendedores de otra coordinación.")
+        return redirect(reverse("vendedor_list"))
+
     if request.method == "POST":
-        form = VendedorForm(request.POST, instance=vendedor)
+        form = VendedorForm(request.POST, instance=vendedor, user=request.user)
         expected_version = int(request.POST.get("version", vendedor.version))
         if form.is_valid():
             try:
@@ -270,7 +400,6 @@ def vendedor_update_view(request: HttpRequest, pk: int) -> HttpResponse:
                     expected_version=expected_version,
                     usuario=request.user,
                     accion=accion,
-                    aliado=form.cleaned_data["aliado"],
                     coordinador=form.cleaned_data["coordinador"],
                     documento=form.cleaned_data["documento"],
                     nombre_completo=form.cleaned_data["nombre_completo"],
@@ -289,7 +418,7 @@ def vendedor_update_view(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect(reverse("vendedor_list"))
             except ConcurrentModificationError as e:
                 vendedor.refresh_from_db()
-                form = VendedorForm(instance=vendedor)
+                form = VendedorForm(instance=vendedor, user=request.user)
                 return render(
                     request,
                     "red_comercial/vendedor_form.html",
@@ -297,7 +426,7 @@ def vendedor_update_view(request: HttpRequest, pk: int) -> HttpResponse:
                     status=409,
                 )
     else:
-        form = VendedorForm(instance=vendedor)
+        form = VendedorForm(instance=vendedor, user=request.user)
     return render(request, "red_comercial/vendedor_form.html", {"form": form, "titulo": f"Editar Ficha: {vendedor.nombre_completo}", "vendedor": vendedor})
 
 
@@ -305,7 +434,7 @@ def vendedor_update_view(request: HttpRequest, pk: int) -> HttpResponse:
 # HISTORIAL DE AUDITORÍA (AUDIT LOG VIEW)
 # ==============================================================================
 
-@requerir_roles("ADMIN", "ALIADO")
+@requerir_roles("ADMIN")
 def audit_log_list_view(request: HttpRequest) -> HttpResponse:
     entidad_filtro = request.GET.get("entidad", "")
     logs_qs = AuditLog.objects.select_related("usuario").all().order_by("-fecha_evento")

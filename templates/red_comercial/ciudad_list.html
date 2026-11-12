@@ -16,6 +16,8 @@
     </div>
     {% if actor.es_admin %}
       <a href="{% url 'ciudad_create' %}" role="button" class="contrast">+ Nueva Ciudad</a>
+    {% else %}
+      <button disabled class="secondary outline" title="Acción reservada para Administrador" style="cursor: not-allowed; opacity: 0.5;">+ Nueva Ciudad</button>
     {% endif %}
   </div>
 
@@ -28,7 +30,7 @@
           <th>Departamento</th>
           <th>Estado</th>
           <th>Versión</th>
-          {% if actor.es_admin %}<th>Acciones</th>{% endif %}
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -45,11 +47,17 @@
               {% endif %}
             </td>
             <td><small>v{{ c.version }}</small></td>
-            {% if actor.es_admin %}
-              <td>
+            <td style="white-space: nowrap;">
+              {% if actor.es_admin %}
                 <a href="{% url 'ciudad_update' c.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
-              </td>
-            {% endif %}
+                <form action="{% url 'ciudad_delete' c.pk %}" method="post" style="display: inline; margin: 0;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Eliminar ciudad?', '¿Está seguro de eliminar la ciudad \'{{ c.nombre|escapejs }}\'?', 'Eliminar', true).then(r => { if(r.isConfirmed) this.submit(); });">
+                  {% csrf_token %}
+                  <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; color: var(--verla-status-blocked); border-color: rgba(239, 68, 68, 0.4);">Eliminar</button>
+                </form>
+              {% else %}
+                <button disabled class="outline secondary" title="Acción reservada para Administrador" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: not-allowed; opacity: 0.4;">Editar</button>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr>

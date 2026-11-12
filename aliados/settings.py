@@ -41,23 +41,22 @@ match config("DEPLOY", default=None):
         # Directorio local donde collectstatic consolida, minifica y serializa los activos estáticos.
         STATIC_ROOT = BASE_DIR / 'staticfiles'
         # Directorio local donde se almacenan los archivos subidos a través de ImageField / FileField.
-        MEDIA_ROOT = BASE_DIR / 'seon_media'
+        MEDIA_ROOT = BASE_DIR / 'mediafiles'
     case "TEST":
         # Entorno de pruebas desplegado en servidor con rutas de sistema de archivos dedicadas.
         DEBUG = True
-        STATIC_ROOT = Path('/var/www/seon_statics')
-        MEDIA_ROOT = Path('/var/www/seon_media')
+        STATIC_ROOT = Path('/var/www/staticverla')
+        MEDIA_ROOT = Path('/var/www/mediaverla')
     case "PROD":
         # Entorno de producción endurecido con DEBUG desactivado y directorio de bitácoras.
         DEBUG = False
-        STATIC_ROOT = Path('/var/www/seon_statics')
-        MEDIA_ROOT = Path('/var/www/seon_media')
-        LOG_DIR = BASE_DIR / 'logs'
+        STATIC_ROOT = Path('/var/www/staticverla')
+        MEDIA_ROOT = Path('/var/www/mediaverla')
     case _:
         # Respaldo seguro por defecto cuando DEPLOY no está definido o tiene un valor no reconocido.
         DEBUG = False
         STATIC_ROOT = BASE_DIR / 'staticfiles'
-        MEDIA_ROOT = BASE_DIR / 'seon_media'
+        MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
 # Configuración de motores de almacenamiento de archivos y activos estáticos (Django 6.x).
 STORAGES = {

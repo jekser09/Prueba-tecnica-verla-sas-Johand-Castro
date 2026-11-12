@@ -25,7 +25,10 @@ Authoritative technical and architectural contract for AI coding agents working 
    - **Optimistic Concurrency Control (`version`)**: Editable entities carry an integer `version` field. Updates must validate `WHERE id = :id AND version = :expected_version` and atomically increment `version = F("version") + 1`. Stale writes must be rejected with HTTP `409 Conflict`.
 6. **Controlled AI Integration (`asistente_ia`)**:
    - Powered by **Google Gemini API (`gemini-2.5-flash`)** over async HTTP (`httpx.AsyncClient`).
+   - **Global Floating Copilot (Omnipresent Widget)**: The assistant is not restricted to an isolated screen; it is integrated across all views via a floating action button and collapsible side drawer (`templates/core/asistente_widget.html`) with screen-aware context injection (`current_path`).
+   - **Tab-Isolated Client State (`sessionStorage`)**: Conversation history and drawer open/close state persist across in-portal navigation without server database bloat. To protect privacy across shared workstations, `sessionStorage` is automatically wiped on tab closure, logout, or demo role switching, preventing subsequent users or DevTools inspections from accessing previous conversations.
    - Operates strictly under **human-in-the-loop** control (drafts commercial offer copy and analyzes monthly goal gaps without mutating domain records directly) and logs latency, token usage, and human verdict (`ACEPTADO`, `EDITADO`, `DESCARTADO`) in `AIAuditLog`.
+   - **Resilience & Fallback**: In the event of rate exhaustion (HTTP 429), network timeout, or absent `GEMINI_API_KEY`, gracefully serves deterministic, realistic rule-based suggestions with SweetAlert2 notifications.
 
 ---
 

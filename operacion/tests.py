@@ -50,7 +50,6 @@ class OperacionDomainModelTests(TestCase):
             telefono="3102220000",
         )
         self.vendedor_1 = Vendedor.objects.create(
-            aliado=self.aliado_1,
             coordinador=self.coord_1,
             documento="8001",
             nombre_completo="Vendedor Uno",
@@ -62,7 +61,6 @@ class OperacionDomainModelTests(TestCase):
         self.vendedor_1.ciudades_operacion.set([self.bogota, self.medellin])
 
         self.vendedor_2 = Vendedor.objects.create(
-            aliado=self.aliado_1,
             coordinador=self.coord_1,
             documento="8002",
             nombre_completo="Vendedor Dos",
@@ -72,7 +70,6 @@ class OperacionDomainModelTests(TestCase):
             fecha_ingreso=date(2025, 1, 12),
         )
         self.vendedor_3 = Vendedor.objects.create(
-            aliado=self.aliado_2,
             coordinador=self.coord_2,
             documento="8003",
             nombre_completo="Vendedor Tres",
@@ -215,7 +212,6 @@ class OperacionViewsAndConcurrencyTests(TestCase):
         )
         self.user_vendedor = User.objects.create_user("vendedor_caribe", "vendedor@caribe.co", "pass123")
         self.vendedor = Vendedor.objects.create(
-            aliado=self.aliado,
             coordinador=self.coord,
             documento="CC-VEND-CARIBE",
             nombre_completo="Diana Arismendi",
@@ -321,4 +317,40 @@ class OperacionViewsAndConcurrencyTests(TestCase):
         self.assertContains(response, "Ficha Comercial: Diana Arismendi")
         self.assertContains(response, f"Mi Meta en {today.strftime('%Y-%m')}")
         self.assertContains(response, "Promo Caribe Fibra")
+
+    def test_cancel_and_delete_oferta_views(self):
+        from django.urls import reverse
+        from red_comercial.models import AuditLog, AccionAuditoria
+
+        self.client.force_login(self.admin)
+        today = timezone.localdate()
+        oferta = OfertaPeriodo.objects.create(
+            titulo="Promo Testing Cancel",
+            descripcion="Descuento temporal",
+            periodo=today.strftime("%Y-%m"),
+            fecha_inicio=today,
+            fecha_fin=today,
+            activa=True,
+            aliado=self.aliado,
+        )
+
+        # 1. Cancelar (soft delete)
+        res_cancel = self.client.post(
+            reverse("oferta_cancel_delete", args=[oferta.pk]),
+            {"action_type": "cancelar"},
+            follow=True,
+        )
+        self.assertEqual(res_cancel.status_code, 200)
+        oferta.refresh_from_db()
+        self.assertFalse(oferta.activa)
+
+        # 2. Eliminar (hard delete)
+        res_del = self.client.post(
+            reverse("oferta_cancel_delete", args=[oferta.pk]),
+            {"action_type": "eliminar"},
+            follow=True,
+        )
+        self.assertEqual(res_del.status_code, 200)
+        self.assertFalse(OfertaPeriodo.objects.filter(pk=oferta.pk).exists())
+        self.assertTrue(AuditLog.objects.filter(entidad="OfertaPeriodo", registro_id=oferta.pk, accion=AccionAuditoria.ELIMINACION).exists())
 

@@ -84,7 +84,6 @@ class VendedorForm(forms.ModelForm):
     class Meta:
         model = Vendedor
         fields = [
-            "aliado",
             "coordinador",
             "documento",
             "nombre_completo",
@@ -104,27 +103,26 @@ class VendedorForm(forms.ModelForm):
             "telefono": forms.TextInput(attrs={"placeholder": "Ej: 3201234567"}),
             "cargo": forms.TextInput(attrs={"placeholder": "Ej: Asesor Comercial Senior"}),
             "motivo_estado": forms.TextInput(attrs={"placeholder": "Justificación si está inactivo o bloqueado"}),
-            "fecha_ingreso": forms.DateInput(attrs={"type": "date"}),
+            "fecha_ingreso": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "ciudades_operacion": forms.SelectMultiple(attrs={"size": "4"}),
         }
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, user: Any = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self.fields["version"].initial = self.instance.version
 
+        # Si el usuario es un Coordinador, solo puede asignarse a sí mismo
+        if user and hasattr(user, "perfil_coordinador") and user.perfil_coordinador:
+            self.fields["coordinador"].queryset = Coordinador.objects.filter(pk=user.perfil_coordinador.pk)
+            self.fields["coordinador"].initial = user.perfil_coordinador
+        elif user and hasattr(user, "perfil_aliado") and user.perfil_aliado:
+            self.fields["coordinador"].queryset = Coordinador.objects.filter(aliado=user.perfil_aliado, activo=True)
+
     def clean(self) -> dict[str, Any]:
         cleaned_data = super().clean()
-        aliado = cleaned_data.get("aliado")
-        coordinador = cleaned_data.get("coordinador")
         estado = cleaned_data.get("estado")
         motivo = cleaned_data.get("motivo_estado")
-
-        if aliado and coordinador and coordinador.aliado_id != aliado.id:
-            self.add_error(
-                "coordinador",
-                f"El coordinador '{coordinador.nombre_completo}' no pertenece al aliado '{aliado.razon_social}'."
-            )
 
         if estado in (EstadoVendedor.INACTIVO, EstadoVendedor.BLOQUEADO) and not motivo:
             self.add_error(

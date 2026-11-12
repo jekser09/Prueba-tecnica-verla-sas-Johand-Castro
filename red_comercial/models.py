@@ -21,6 +21,7 @@ class AccionAuditoria(models.TextChoices):
     ACTUALIZACION = "ACTUALIZACION", "Actualización"
     CAMBIO_ESTADO = "CAMBIO_ESTADO", "Cambio de estado"
     BLOQUEO = "BLOQUEO", "Bloqueo operativo"
+    ELIMINACION = "ELIMINACION", "Eliminación"
 
 
 def _serializar_valor_auditoria(valor: Any) -> Any:
@@ -232,14 +233,9 @@ class Vendedor(VersionedModel):
     """
     Ficha de funcionario comercial (vendedor) con asignación a un Coordinador,
     ciudad base, operación multiciudad y control explícito de estados y bloqueos.
+    El Aliado comercial se deriva de forma normalizada a través de su Coordinador responsable.
     """
 
-    aliado = models.ForeignKey(
-        Aliado,
-        verbose_name="Aliado comercial",
-        on_delete=models.PROTECT,
-        related_name="vendedores",
-    )
     coordinador = models.ForeignKey(
         Coordinador,
         verbose_name="Coordinador responsable",
@@ -296,23 +292,19 @@ class Vendedor(VersionedModel):
 
     def clean(self) -> None:
         super().clean()
-        if self.aliado_id and self.coordinador_id:
-            if self.coordinador.aliado_id != self.aliado_id:
-                raise ValidationError(
-                    {
-                        "coordinador": (
-                            "El coordinador seleccionado no pertenece al mismo aliado comercial del vendedor."
-                        )
-                    }
-                )
+
+    @property
+    def aliado(self) -> Aliado | None:
+        """Retorna el Aliado comercial titular a través de la asignación del Coordinador."""
+        return self.coordinador.aliado if self.coordinador_id else None
 
     @property
     def puede_operar(self) -> bool:
         """Indica si el vendedor está habilitado para realizar operaciones y consultar ofertas activas."""
         return (
             self.estado == EstadoVendedor.ACTIVO
-            and self.aliado.activo
             and self.coordinador.activo
+            and self.coordinador.aliado.activo
         )
 
     def cambiar_estado(

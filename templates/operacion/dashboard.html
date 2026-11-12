@@ -17,22 +17,45 @@
     <div style="display: flex; gap: 0.5rem;">
       {% if actor.es_admin or actor.es_aliado %}
         <a href="{% url 'oferta_create' %}?periodo={{ periodo_actual }}" role="button" class="outline contrast">+ Nueva Oferta</a>
+      {% else %}
+        <button disabled class="secondary outline" title="Acción reservada para Administrador o Aliado" style="cursor: not-allowed; opacity: 0.5;">+ Nueva Oferta</button>
       {% endif %}
-      {% if actor.es_admin or actor.es_aliado or actor.es_coordinador %}
+      {% if actor.es_admin or actor.es_coordinador %}
         <a href="{% url 'meta_create' %}?periodo={{ periodo_actual }}" role="button" class="contrast">+ Asignar Meta</a>
+      {% else %}
+        <button disabled class="secondary outline" title="Acción reservada para Coordinador o Administrador" style="cursor: not-allowed; opacity: 0.5;">+ Asignar Meta</button>
       {% endif %}
     </div>
   </div>
 
-  <!-- Barra de Filtro de Periodo -->
-  <article style="padding: 1rem; margin-bottom: 1.5rem;">
-    <form method="get" style="display: flex; gap: 1rem; margin: 0; align-items: flex-end;">
+  <!-- Barra de Filtro de Periodo (Mes y Año Separados con Icono de Lupa) -->
+  <article style="padding: 0.85rem 1.2rem; margin-bottom: 1.5rem;">
+    <form method="get" style="display: flex; gap: 0.75rem; margin: 0; align-items: flex-end; flex-wrap: wrap;">
       <div>
-        <label for="periodo_input" style="font-size: 0.85rem; margin-bottom: 0.2rem;">Periodo Mensual (YYYY-MM):</label>
-        <input type="text" name="periodo" id="periodo_input" value="{{ periodo_actual }}" placeholder="YYYY-MM" style="margin: 0; width: 140px;">
+        <label for="mes_select" style="font-size: 0.82rem; margin-bottom: 0.25rem;">Mes:</label>
+        <select name="mes" id="mes_select" style="margin: 0; min-width: 140px; height: 2.2rem; padding: 0.2rem 0.6rem; font-size: 0.88rem;">
+          {% for cod_m, nom_m in meses_opciones %}
+            <option value="{{ cod_m }}" {% if sel_mes == cod_m %}selected{% endif %}>{{ nom_m }}</option>
+          {% endfor %}
+        </select>
       </div>
+
       <div>
-        <button type="submit" class="contrast" style="margin: 0; padding: 0.45rem 1rem;">Consultar Periodo</button>
+        <label for="anio_select" style="font-size: 0.82rem; margin-bottom: 0.25rem;">Año:</label>
+        <select name="anio" id="anio_select" style="margin: 0; min-width: 100px; height: 2.2rem; padding: 0.2rem 0.6rem; font-size: 0.88rem;">
+          {% for a in anios_opciones %}
+            <option value="{{ a }}" {% if sel_anio == a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <button type="submit" class="contrast" aria-label="Buscar metas del periodo" title="Buscar periodo" style="margin: 0; height: 2.2rem; width: 2.5rem; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
       </div>
     </form>
   </article>
@@ -41,12 +64,12 @@
   <div class="grid" style="margin-bottom: 2rem;">
     <article>
       <header><strong>Meta Consolidada ($)</strong></header>
-      <h2>${{ total_meta|floatformat:2 }}</h2>
+      <h2 data-currency="COP" data-amount="{{ total_meta }}">${{ total_meta|floatformat:2 }}</h2>
       <small style="color: var(--verla-text-muted);">Presupuesto fijado para {{ periodo_actual }}</small>
     </article>
     <article>
       <header><strong>Resultado Real Alcanzado ($)</strong></header>
-      <h2>${{ total_real|floatformat:2 }}</h2>
+      <h2 data-currency="COP" data-amount="{{ total_real }}">${{ total_real|floatformat:2 }}</h2>
       <small style="color: var(--verla-text-muted);">Ventas ejecutadas verificadas</small>
     </article>
     <article>
@@ -75,7 +98,9 @@
         {% for o in ofertas %}
           <article style="border: 1px solid var(--verla-border); padding: 1rem; background: var(--verla-bg-elevated);">
             {% if o.imagen %}
-              <img src="{{ o.imagen.url }}" alt="{{ o.titulo }}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 6px; margin-bottom: 0.75rem;">
+              <div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 145px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden;">
+                <img src="{{ o.imagen.url }}" alt="{{ o.titulo }}" style="width: 135px; height: 135px; object-fit: contain; border-radius: 4px;">
+              </div>
             {% endif %}
             <h4 style="margin-bottom: 0.4rem;">{{ o.titulo }}</h4>
             <small style="color: var(--verla-text-muted); display: block; margin-bottom: 0.5rem;">
@@ -84,7 +109,21 @@
             <p style="font-size: 0.85rem; line-height: 1.4;">{{ o.descripcion|truncatewords:20 }}</p>
             <footer>
               {% if actor.es_admin or actor.es_aliado %}
-                <a href="{% url 'oferta_update' o.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; width: 100%;">Editar Oferta</a>
+                <div style="display: flex; gap: 0.5rem; width: 100%;">
+                  <a href="{% url 'oferta_update' o.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; flex: 1; text-align: center;">Editar</a>
+                  <form action="{% url 'oferta_cancel_delete' o.pk %}" method="post" style="display: inline; margin: 0; flex: 1;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Cancelar oferta?', '¿Desea desactivar y cancelar esta oferta para el periodo?', 'Cancelar Oferta', true).then(r => { if(r.isConfirmed) this.submit(); });">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="cancelar">
+                    <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; width: 100%; color: var(--verla-status-inactive); border-color: rgba(245, 158, 11, 0.4);">Cancelar</button>
+                  </form>
+                  {% if actor.es_admin %}
+                    <form action="{% url 'oferta_cancel_delete' o.pk %}" method="post" style="display: inline; margin: 0;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Eliminar oferta?', '¿Está seguro de eliminar permanentemente esta oferta?', 'Eliminar', true).then(r => { if(r.isConfirmed) this.submit(); });">
+                      {% csrf_token %}
+                      <input type="hidden" name="action_type" value="eliminar">
+                      <button type="submit" class="outline secondary" title="Eliminar definitivamente" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; color: var(--verla-status-blocked); border-color: rgba(239, 68, 68, 0.4);">✕</button>
+                    </form>
+                  {% endif %}
+                </div>
               {% endif %}
             </footer>
           </article>
@@ -126,8 +165,8 @@
                 <span style="color: var(--verla-text-muted);">{{ m.vendedor.aliado.razon_social }}</span>
               </small>
             </td>
-            <td>${{ m.meta_valor|floatformat:2 }}</td>
-            <td>${{ m.resultado_real|floatformat:2 }}</td>
+            <td data-currency="COP" data-amount="{{ m.meta_valor }}">${{ m.meta_valor|floatformat:2 }}</td>
+            <td data-currency="COP" data-amount="{{ m.resultado_real }}">${{ m.resultado_real|floatformat:2 }}</td>
             <td>
               {% if m.porcentaje_cumplimiento >= 100 %}
                 <span class="badge-status activo">{{ m.porcentaje_cumplimiento }}%</span>
@@ -139,7 +178,11 @@
             </td>
             <td><small>v{{ m.version }}</small></td>
             <td>
-              <a href="{% url 'meta_update' m.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+              {% if actor.es_admin or actor.es_coordinador and m.vendedor.coordinador_id == actor.objeto.pk %}
+                <a href="{% url 'meta_update' m.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+              {% else %}
+                <button disabled class="outline secondary" title="Acción reservada para Coordinador a cargo o Administrador" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: not-allowed; opacity: 0.4;">Editar</button>
+              {% endif %}
             </td>
           </tr>
         {% empty %}

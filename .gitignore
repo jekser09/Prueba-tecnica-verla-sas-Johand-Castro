@@ -38,7 +38,7 @@ env/
 
 # Django static collection, media uploads & logs
 staticfiles/
-media/
+mediafiles/
 *.log
 local_settings.py
 

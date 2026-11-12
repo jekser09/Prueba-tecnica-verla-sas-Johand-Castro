@@ -29,14 +29,13 @@ class VendedorAdmin(admin.ModelAdmin):
     list_display = (
         "documento",
         "nombre_completo",
-        "aliado",
         "coordinador",
         "ciudad_base",
         "estado",
         "version",
     )
     search_fields = ("documento", "nombre_completo", "correo")
-    list_filter = ("estado", "aliado", "ciudad_base")
+    list_filter = ("estado", "coordinador__aliado", "ciudad_base")
     filter_horizontal = ("ciudades_operacion",)
 
 

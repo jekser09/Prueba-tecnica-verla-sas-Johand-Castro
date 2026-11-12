@@ -66,7 +66,6 @@ erDiagram
 
     VENDEDOR {
         bigint id PK
-        bigint aliado_id FK
         bigint coordinador_id FK
         varchar(30) documento UK
         varchar(160) nombre_completo
@@ -193,8 +192,7 @@ Ficha de funcionario comercial asignado a un `Coordinador`, con ciudad base, ope
 | Columna | Tipo SQL | Nulo | Restricciones / Índices | Descripción |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `INTEGER` | No | `PK`, `AUTOINCREMENT` | Identificador único del vendedor. |
-| `aliado_id` | `BIGINT` | No | `FK -> red_comercial_aliado(id)` (`PROTECT`) | Aliado empleador del vendedor (debe coincidir con el del coordinador). |
-| `coordinador_id` | `BIGINT` | No | `FK -> red_comercial_coordinador(id)` (`PROTECT`) | Coordinador responsable directo del vendedor. |
+| `coordinador_id` | `BIGINT` | No | `FK -> red_comercial_coordinador(id)` (`PROTECT`) | Coordinador responsable directo del vendedor (determina el Aliado por 3FN). |
 | `documento` | `VARCHAR(30)` | No | `UNIQUE` | Cédula o documento de identidad del funcionario. |
 | `nombre_completo` | `VARCHAR(160)` | No | — | Nombre completo del funcionario. |
 | `correo` | `VARCHAR(254)` | No | — | Correo electrónico del vendedor. |

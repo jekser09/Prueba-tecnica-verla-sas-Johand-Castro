@@ -27,9 +27,12 @@
 
   /* Map Pico CSS (v2) tokens to VERLA Dark Palette */
   --pico-font-family-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --pico-font-size: 1.5rem;
+  --pico-border-radius: 10px;
   --pico-background-color: var(--verla-bg-canvas);
   --pico-card-background-color: var(--verla-bg-surface);
   --pico-card-border-color: var(--verla-border);
+  --pico-card-border-radius: 12px;
   --pico-color: var(--verla-text-primary);
   --pico-muted-color: var(--verla-text-muted);
   --pico-border-color: var(--verla-border);
@@ -42,8 +45,13 @@
   --pico-form-element-background-color: var(--verla-bg-elevated);
   --pico-form-element-border-color: var(--verla-border);
   --pico-form-element-color: var(--verla-text-primary);
+  --pico-form-element-border-radius: 8px;
   --pico-table-border-color: var(--verla-border);
   --pico-table-row-stripped-background-color: rgba(26, 24, 66, 0.45);
+}
+
+html {
+  font-size: 16px;
 }
 
 body {
@@ -54,18 +62,60 @@ body {
   flex-direction: column;
 }
 
+/* Regla 5: El tamaño general de texto que no son encabezados es de 15px */
+p, span, label, input, select, textarea, button, a, td, th, li, small {
+  font-size: 15px;
+}
+
+/* Excepciones sutiles para elementos compactos */
+small, .badge-status, .role-switcher-bar small {
+  font-size: 13px;
+}
+
+/* Regla 4: Redondeado sutil y moderno para evitar apariencia tosca/cuadrada */
+article,
+dialog,
+input,
+select,
+textarea,
+button,
+a[role="button"],
+.verla-alert,
+table,
+thead tr th:first-child,
+thead tr th:last-child {
+  border-radius: 10px;
+}
+
+article {
+  border-radius: 12px;
+  border: 1px solid var(--verla-border);
+}
+
+table {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
 main.container {
   flex: 1 0 auto;
   padding-top: 1.5rem;
   padding-bottom: 2.5rem;
 }
 
-/* Grid Cards & Uniform Article Layout (Flex Sticky Footers) */
+/* Grid Cards & Uniform Article Layout (Flex Sticky Footers & Responsive Wrapping) */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
 .grid article {
   display: flex;
   flex-direction: column;
   height: 100%;
   margin-bottom: 0;
+  min-width: 0; /* Prevents overflow inside grid items */
 }
 
 .grid article > p,
@@ -94,21 +144,31 @@ header.verla-navbar {
   top: 0;
   z-index: 1000;
   padding: 0.25rem 0;
+  display: flex;
+  align-items: center;
 }
 
 header.verla-navbar nav {
   margin-bottom: 0;
   min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
 header.verla-navbar nav ul {
+  display: flex;
   align-items: center;
   margin: 0;
   padding: 0;
+  height: 100%;
 }
 
 header.verla-navbar nav ul li {
   padding: 0 0.4rem;
+  display: inline-flex;
+  align-items: center;
 }
 
 header.verla-navbar nav ul li a {
@@ -144,7 +204,7 @@ header.verla-navbar nav ul li a:hover {
 }
 
 .brand-badge img {
-  height: 22px;
+  height: 28px;
   width: auto;
   display: block;
 }
@@ -239,3 +299,162 @@ header.verla-navbar nav ul li a:hover {
   border-color: rgba(59, 51, 188, 0.4);
   color: #C7D2FE;
 }
+
+/* ==============================================================================
+ * Estilos del Copiloto Flotante Global (Google Gemini)
+ * ============================================================================== */
+#verla-ai-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  font-family: inherit;
+}
+
+#verla-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, var(--verla-brand-indigo) 0%, var(--verla-brand-navy) 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 9999px;
+  padding: 0.5rem 1.1rem;
+  box-shadow: 0 4px 18px rgba(59, 51, 188, 0.45);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin: 0;
+}
+
+#verla-ai-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(59, 51, 188, 0.65);
+}
+
+.verla-ai-drawer {
+  display: none;
+  position: fixed;
+  bottom: 5.5rem;
+  right: 1.5rem;
+  width: 380px;
+  max-width: calc(100vw - 2rem);
+  height: 520px;
+  max-height: calc(100vh - 7rem);
+  background: var(--verla-bg-surface);
+  border: 1px solid var(--verla-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+}
+
+.verla-ai-drawer.is-open {
+  display: flex;
+  animation: fadeInSlideUp 0.22s ease-out;
+}
+
+@keyframes fadeInSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.verla-ai-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--verla-bg-elevated);
+  border-bottom: 1px solid var(--verla-border);
+}
+
+.verla-ai-chips {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+  background: rgba(8, 7, 26, 0.5);
+  border-bottom: 1px solid var(--verla-border);
+}
+
+.ai-chip {
+  white-space: nowrap;
+  background: rgba(59, 51, 188, 0.2);
+  border: 1px solid rgba(59, 51, 188, 0.4);
+  color: var(--verla-text-primary);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.ai-chip:hover {
+  background: rgba(59, 51, 188, 0.35);
+}
+
+.verla-ai-messages {
+  flex: 1 1 auto;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ai-bubble {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  max-width: 88%;
+  word-break: break-word;
+}
+
+.ai-bubble.user {
+  align-self: flex-end;
+  background: var(--verla-brand-indigo);
+  color: #FFFFFF;
+  border-bottom-right-radius: 2px;
+}
+
+.ai-bubble.assistant {
+  align-self: flex-start;
+  background: var(--verla-bg-elevated);
+  color: var(--verla-text-primary);
+  border: 1px solid var(--verla-border);
+  border-bottom-left-radius: 2px;
+}
+
+.ai-actions-bar {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-action-btn {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0;
+  background: transparent;
+  border: 1px solid var(--verla-border);
+  color: var(--verla-text-muted);
+}
+
+.ai-action-btn:hover {
+  color: var(--verla-text-primary);
+  border-color: var(--verla-brand-indigo);
+}
+
+.verla-ai-footer {
+  padding: 0.65rem 0.75rem;
+  background: var(--verla-bg-elevated);
+  border-top: 1px solid var(--verla-border);
+}
+

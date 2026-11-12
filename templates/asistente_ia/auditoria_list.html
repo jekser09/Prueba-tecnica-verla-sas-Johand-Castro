@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Bitácora de Asistente IA | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ul>
+          <li><a href="{% url 'portal_home' %}">Inicio</a></li>
+          <li>Asistente IA</li>
+        </ul>
+      </nav>
+      <h2>Supervisión & Auditoría de Copiloto IA (Google Gemini)</h2>
+      <p style="color: var(--verla-text-muted);">
+        Telemetría de consultas, modelo utilizado, latencia en milisegundos y veredictos del flujo <em>Human-in-the-Loop</em>.
+      </p>
+    </div>
+  </div>
+
+  <article>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Fecha / Hora</th>
+          <th>Usuario</th>
+          <th>Caso de Uso</th>
+          <th>Modelo & Latencia</th>
+          <th>Decisión Humana</th>
+          <th>Detalle de Consulta y Respuesta</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page_obj %}
+          <tr>
+            <td><small>{{ log.creado_en|date:"Y-m-d H:i:s" }}</small></td>
+            <td><strong>{{ log.usuario.username|default:"Demo / Anónimo" }}</strong></td>
+            <td><small>{{ log.get_caso_uso_display }}</small></td>
+            <td>
+              <code>{{ log.modelo }}</code><br>
+              <small style="color: var(--verla-text-muted);">{{ log.latencia_ms }} ms | ~{{ log.tokens_estimados }} tokens</small>
+            </td>
+            <td>
+              {% if log.decision_humana == 'ACEPTADO' %}
+                <span class="badge-status activo">Aceptado</span>
+              {% elif log.decision_humana == 'EDITADO' %}
+                <span class="badge-status inactivo">Editado</span>
+              {% elif log.decision_humana == 'DESCARTADO' %}
+                <span class="badge-status bloqueado">Descartado</span>
+              {% else %}
+                <span style="font-size:0.75rem; text-transform:uppercase; color:var(--verla-text-muted);">Pendiente</span>
+              {% endif %}
+            </td>
+            <td>
+              <details style="margin: 0; font-size: 0.8rem;">
+                <summary style="cursor: pointer; color: var(--verla-brand-indigo-hover);">Ver prompt y JSON</summary>
+                <div style="background: var(--verla-bg-canvas); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; max-width: 400px; overflow-x: auto;">
+                  <strong style="color: var(--verla-brand-indigo);">Prompt:</strong>
+                  <p style="margin: 0.2rem 0 0.5rem; white-space: pre-wrap;">{{ log.prompt_resumen }}</p>
+                  <strong style="color: var(--verla-brand-indigo);">Respuesta:</strong>
+                  <pre style="margin: 0.2rem 0 0;"><code>{{ log.respuesta_json|pprint }}</code></pre>
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--verla-text-muted);">
+              No se han registrado consultas al asistente de IA todavía. Abre la burbuja flotante para iniciar.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+      <footer style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem;">
+        <div>
+          <small style="color: var(--verla-text-muted);">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</small>
+        </div>
+        <div>
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" role="button" class="outline contrast" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">Anterior</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" role="button" class="outline contrast" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">Siguiente</a>
+          {% endif %}
+        </div>
+      </footer>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

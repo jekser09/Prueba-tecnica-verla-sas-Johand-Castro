@@ -14,8 +14,10 @@
       </nav>
       <h2>Coordinadores de Red</h2>
     </div>
-    {% if actor.es_admin or actor.es_aliado %}
+    {% if actor.es_admin %}
       <a href="{% url 'coordinador_create' %}" role="button" class="contrast">+ Nuevo Coordinador</a>
+    {% else %}
+      <button disabled class="secondary outline" title="Acción reservada para Administrador" style="cursor: not-allowed; opacity: 0.5;">+ Nuevo Coordinador</button>
     {% endif %}
   </div>
 
@@ -29,7 +31,7 @@
           <th>Contacto</th>
           <th>Estado</th>
           <th>Versión</th>
-          {% if actor.es_admin or actor.es_aliado %}<th>Acciones</th>{% endif %}
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -49,11 +51,17 @@
               {% endif %}
             </td>
             <td><small>v{{ c.version }}</small></td>
-            {% if actor.es_admin or actor.es_aliado %}
-              <td>
+            <td style="white-space: nowrap;">
+              {% if actor.es_admin %}
                 <a href="{% url 'coordinador_update' c.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
-              </td>
-            {% endif %}
+                <form action="{% url 'coordinador_delete' c.pk %}" method="post" style="display: inline; margin: 0;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Eliminar coordinador?', '¿Está seguro de eliminar al coordinador \'{{ c.nombre_completo|escapejs }}\'?', 'Eliminar', true).then(r => { if(r.isConfirmed) this.submit(); });">
+                  {% csrf_token %}
+                  <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; color: var(--verla-status-blocked); border-color: rgba(239, 68, 68, 0.4);">Eliminar</button>
+                </form>
+              {% else %}
+                <button disabled class="outline secondary" title="Acción reservada para Administrador" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: not-allowed; opacity: 0.4;">Editar</button>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr>

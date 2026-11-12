@@ -14,8 +14,10 @@
       </nav>
       <h2>Fuerza de Ventas (Vendedores)</h2>
     </div>
-    {% if actor.es_admin or actor.es_aliado or actor.es_coordinador %}
+    {% if actor.es_admin or actor.es_coordinador %}
       <a href="{% url 'vendedor_create' %}" role="button" class="contrast">+ Nuevo Vendedor</a>
+    {% else %}
+      <button disabled class="secondary outline" title="Acción reservada para Administrador o Coordinador" style="cursor: not-allowed; opacity: 0.5;">+ Nuevo Vendedor</button>
     {% endif %}
   </div>
 
@@ -65,7 +67,7 @@
             <td><code>{{ v.documento }}</code></td>
             <td>
               <strong>{{ v.nombre_completo }}</strong><br>
-              <small style="color:var(--verla-text-muted);">{{ v.cargo }}</small>
+              <small style="color:var(--verla-text-muted);">{{ v.cargo }} • Registrado: {{ v.creado_en|date:"d/m/Y H:i" }}</small>
             </td>
             <td>
               <small>
@@ -92,7 +94,11 @@
             </td>
             <td><small>v{{ v.version }}</small></td>
             <td>
-              <a href="{% url 'vendedor_update' v.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+              {% if actor.es_admin or actor.es_coordinador and v.coordinador_id == actor.objeto.pk %}
+                <a href="{% url 'vendedor_update' v.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+              {% else %}
+                <button disabled class="outline secondary" title="Acción reservada para Coordinador a cargo o Administrador" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: not-allowed; opacity: 0.4;">Editar</button>
+              {% endif %}
             </td>
           </tr>
         {% empty %}

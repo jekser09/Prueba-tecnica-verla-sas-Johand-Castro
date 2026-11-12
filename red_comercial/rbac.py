@@ -151,9 +151,41 @@ def requerir_roles(*roles_permitidos: str) -> Callable:
                 return view_func(request, *args, **kwargs)
 
             if perfil["rol"] not in roles_permitidos:
-                raise PermissionDenied(
-                    f"Su rol ({perfil['rol']}) no cuenta con permisos para acceder a este recurso."
-                )
+                # Si el usuario es un vendedor bloqueado, verificar_vendedor_operativo ya lo interceptó arriba.
+                # Para otros roles no autorizados, solo registramos mensaje si no es un vendedor bloqueado
+                if not (perfil["es_vendedor"] and perfil["bloqueado"]):
+                    messages.error(
+                        request,
+                        f"No tiene permisos para realizar esta acción. Su rol activo ({perfil['rol']}) no cuenta con autorización."
+                    )
+
+                # Si el usuario intentó acceder a una acción específica (ej. editar o crear) y viene de una vista interna,
+                # redirigir a la vista previa para no expulsarlo al inicio.
+                referer = request.META.get("HTTP_REFERER")
+                if referer:
+                    from urllib.parse import urlparse
+                    ref_url = urlparse(referer)
+                    curr_host = request.get_host()
+                    if not ref_url.netloc or ref_url.netloc == curr_host:
+                        return redirect(referer)
+
+                # Si no hay referer, verificar si el rol tiene acceso a la vista de lista del submódulo
+                path = request.path
+                if "/vendedores/" in path and (perfil["es_admin"] or perfil["es_aliado"] or perfil["es_coordinador"]):
+                    return redirect("vendedor_list")
+                if "/coordinadores/" in path and (perfil["es_admin"] or perfil["es_aliado"] or perfil["es_coordinador"]):
+                    return redirect("coordinador_list")
+                if "/aliados/" in path and (perfil["es_admin"] or perfil["es_aliado"] or perfil["es_coordinador"]):
+                    return redirect("aliado_list")
+                if "/ciudades/" in path and (perfil["es_admin"] or perfil["es_aliado"] or perfil["es_coordinador"]):
+                    return redirect("ciudad_list")
+                if "/operacion/" in path and (perfil["es_admin"] or perfil["es_aliado"] or perfil["es_coordinador"]):
+                    return redirect("op_default")
+
+                # Solo cuando el rol no tiene acceso a la vista completa del módulo, redirigir al inicio o su portal
+                if perfil["es_vendedor"]:
+                    return redirect("op_default")
+                return redirect("portal_home")
 
             return view_func(request, *args, **kwargs)
 

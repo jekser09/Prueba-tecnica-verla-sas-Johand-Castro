@@ -7,7 +7,7 @@ from operacion.models import MetaMensual, OfertaPeriodo
 class MetaMensualAdmin(admin.ModelAdmin):
     list_display = ("periodo", "vendedor", "meta_valor", "resultado_real", "version")
     search_fields = ("periodo", "vendedor__nombre_completo", "vendedor__documento")
-    list_filter = ("periodo", "vendedor__aliado")
+    list_filter = ("periodo", "vendedor__coordinador__aliado")
 
 
 @admin.register(OfertaPeriodo)

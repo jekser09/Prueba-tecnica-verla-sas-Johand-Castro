@@ -51,12 +51,25 @@ Build and verify the operational MVP for **Portal de Aliados Comerciales — VER
   - Implement specialized active seller portal view (`mis_metas_y_ofertas_vendedor_view`) showing personal goal fulfillment, historical goals table, and scoped commercial offers (filtered by ally and base/operating cities).
   - Implement CRUD forms and views for `MetaMensual` and `OfertaPeriodo` with image upload support and optimistic concurrency locking (`version`) triggering HTTP `409 Conflict` on race conditions.
   - **Verification**: `uv run python manage.py test -v 2` -> `Ran 27 tests in 9.565s — OK`; `uv run python manage.py makemigrations --check --dry-run` -> `No changes detected`.
-- [ ] **T5: Controlled Google Gemini AI Assistant (`async def` + `httpx` + `AIAuditLog`) & Seed Data Command** (Route: `delegated`)
-- [ ] **T6: Project Review, Hardening & Free Deployment Platform with Automated SSL** (Route: `delegated` — Writer trigger: deployment configuration, environment checklist, security headers, platform evaluation for Render / Railway / Fly.io with automated HTTPS/SSL, and final smoke test)
-  - Perform full project audit (static assets collection, SQLite WAL settings, rate limit quotas, dark theme Pico/SweetAlert2 responsiveness, RBAC guards).
-  - Define and document deployment architecture on a platform with a free tier and automated SSL certificate (e.g. Render / Railway) supporting Python 3.14 + Granian ASGI + persistent disk or SQLite storage.
-  - Provide production run commands, environment variables reference (`.env.template`), and deployment guide in `docs/DEPLOYMENT.md`.
-  - Comprehensive end-to-end test run and verification before handoff.
+- [x] **T5: Controlled Google Gemini AI Assistant (`async def` + `httpx` + `AIAuditLog`) & Seed Data Command** (Route: `delegated` — Omnipresent Widget with `sessionStorage`)
+  - Implement async Gemini service (`asistente_ia/services.py`) using `gemini-2.5-flash` via `httpx.AsyncClient` with fallback/mock resilience, token/latency telemetry tracking, and structured JSON parsing.
+  - Implement global floating assistant button with official white Gemini star icon (`static/img/gemini-logo-white.svg`) and collapsible side-drawer widget (`templates/core/asistente_widget.html`) available across all portal views.
+  - Implement client-side chat persistence using tab-isolated `sessionStorage` with automatic purge on role switch / logout to guarantee privacy across shared workstations without database overhead.
+  - Implement screen-aware context injection (`/asistente/api/consultar/`) allowing contextual queries on commercial network and goal gaps.
+  - Implement human-in-the-loop recording (`AIAuditLog` verdict recording: `ACEPTADO`, `EDITADO`, `DESCARTADO`).
+  - Implement comprehensive seed command (`python manage.py seed_demo_data`) populating realistic commercial network, monthly goals, and period offers with images.
+  - **Verification**: `uv run python manage.py test -v 2` -> `Ran 31 tests in 11.871s — OK`; `uv run python manage.py makemigrations --check --dry-run` -> `No changes detected`.
+- [ ] **T6: Comprehensive Functional & UX/UI Review (End-to-End Quality Audit)** (Route: `delegated` — Writer trigger: functional verification across all grading dimensions, dark theme consistency, SweetAlert2 notifications, optimistic locking 409 modals, RBAC operational guards, seller state blocking, and complete automated test suite)
+  - Execute end-to-end audit of business logic: verify commercial hierarchy integrity, multi-city operations, required reason on seller state change, and optimistic concurrency version increments.
+  - Audit UI/UX responsiveness and dark theme palette consistency (Pico CSS v2, contrast, uniform cards, slim navbar, frosted pill logo, omnipresent Gemini copilot with `sessionStorage` isolation).
+  - Run full test suite with verbose diagnostics and verify zero unapplied migrations or static asset warnings.
+  - Document quality audit findings and fixes in `docs/QUALITY_AUDIT.md`.
+
+- [ ] **T7: Deployment Architecture, Free Platform Definition with Automated SSL & Production Deployment** (Route: `delegated` — Writer trigger: platform evaluation, production configuration, Granian ASGI runner, environment checklist, deployment guide, and live verification)
+  - Evaluate and select the optimal hosting platform with a reliable free tier and automated TLS/SSL certificate (e.g. Render Web Service / Railway).
+  - Prepare production settings checklist (`DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, persistent volume/disk for SQLite WAL and media uploads, static collection via `collectstatic`).
+  - Author comprehensive deployment guide in `docs/DEPLOYMENT.md` with step-by-step instructions, run commands, and `.env.template` reference.
+  - Validate production build locally (`uv run python manage.py collectstatic --no-input`) and document deployment readiness.
 
 ## Progress & Verification Evidence
 - **Bootstrap**: Static/HTML minification pipeline (`aliados/storage.py`) and SQLite WAL configuration verified (`Ran 3 tests in 0.032s — OK`, commit `77804a3`).
@@ -64,4 +77,5 @@ Build and verify the operational MVP for **Portal de Aliados Comerciales — VER
 - **T2 Completed**: Base Dark Theme UI (Pico CSS v2 + VERLA dark design tokens), responsive layout (`templates/base.html`, `login.html`, `acceso_bloqueado.html`), RBAC guards (`requerir_roles`, `verificar_vendedor_operativo`), and Demo Role Switcher (`/simular-rol/`) with 20 automated tests passing (`Ran 20 tests in 4.942s — OK`).
 - **T3 Completed**: Commercial Network CRUD (`Ciudad`, `Aliado`, `Coordinador`, `Vendedor`), SweetAlert2 notifications & conflict modal, optimistic concurrency HTTP `409 Conflict` guards, and `AuditLog` history viewer with 24 automated tests passing (`Ran 24 tests in 6.707s — OK`).
 - **T4 Completed**: Operations Dashboard (`MetaMensual` aggregation by period/ally/coordinator, % threshold indicators), `OfertaPeriodo` image uploads & city/ally scoping, dedicated active seller portal view, and concurrency 409 protection with 27 automated tests passing (`Ran 27 tests in 9.565s — OK`).
-- **Next Step**: Execute T5 (Controlled Google Gemini AI Assistant & Seed Data Command).
+- **T5 Completed**: Google Gemini Asynchronous Copilot (`gemini-2.5-flash` via `httpx`), omnipresent floating widget with official white spark icon, `sessionStorage` chat persistence, screen-aware context injection, `AIAuditLog` telemetry & human verdicts, and `seed_demo_data` command with 31 automated tests passing (`Ran 31 tests in 11.871s — OK`).
+- **Next Step**: Execute T6 (Comprehensive Functional & UX/UI Review - End-to-End Quality Audit).

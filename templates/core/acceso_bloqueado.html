@@ -3,29 +3,53 @@
 {% block title %}{{ titulo|default:"Acceso Restringido" }} | {{ PORTAL_TITLE }}{% endblock %}
 
 {% block content %}
-<div style="max-width: 600px; margin: 3rem auto;">
-  <article style="border: 1px solid var(--verla-status-blocked);">
-    <header style="text-align: center;">
-      <h2 style="color: var(--verla-status-blocked);">🚫 {{ titulo }}</h2>
-      <span class="badge-status {{ estado|lower }}">{{ estado }}</span>
-    </header>
-
-    <div style="padding: 1rem 0;">
-      <p style="font-size: 1.1rem; line-height: 1.6;">
-        {{ mensaje }}
-      </p>
-      <div class="verla-alert alert-blocked">
-        <strong>Aviso de Gobernanza Comercial:</strong> De acuerdo con las políticas operacionales de VERLA SAS, los asesores en estado <em>{{ estado }}</em> tienen deshabilitada la consulta de metas, creación de registros comerciales y acceso a ofertas activas.
-      </div>
+<div style="min-height: 45vh; display: flex; align-items: center; justify-content: center;">
+  <noscript>
+    <div style="max-width: 600px; margin: 2rem auto;">
+      <article style="border: 2px solid var(--verla-status-blocked); background: var(--verla-bg-surface); border-radius: 8px;">
+        <header style="text-align: center; border-bottom: 1px solid var(--verla-border);">
+          <h2 style="color: var(--verla-status-blocked); margin-bottom: 0.5rem;">🚫 {{ titulo }}</h2>
+          <span class="badge-status {{ estado|lower }}">{{ estado }}</span>
+        </header>
+        <div style="padding: 1.5rem 0;">
+          <p style="font-size: 1.05rem; line-height: 1.6;">{{ mensaje }}</p>
+        </div>
+        <footer style="text-align: right;">
+          <form action="{% url 'logout' %}" method="post" style="margin: 0;">
+            {% csrf_token %}
+            <button type="submit" class="contrast">Cerrar sesión</button>
+          </form>
+        </footer>
+      </article>
     </div>
-
-    <footer style="display: flex; justify-content: space-between; align-items: center;">
-      <small style="color: var(--verla-text-muted);">Si considera que se trata de un error, comuníquese con su Coordinador.</small>
-      <form action="{% url 'logout' %}" method="post" style="margin: 0;">
-        {% csrf_token %}
-        <button type="submit" class="secondary outline" style="margin: 0; padding: 0.35rem 0.8rem;">Cerrar sesión</button>
-      </form>
-    </footer>
-  </article>
+  </noscript>
 </div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof Swal !== "undefined") {
+      Swal.fire({
+        title: "🚫 Acceso Comercial Bloqueado",
+        html: `<p style="font-size:1.05rem; margin-bottom: 1rem;">Su usuario de vendedor se encuentra actualmente <strong>BLOQUEADO</strong> para operar en la plataforma.</p><div style="background: rgba(239,68,68,0.15); border: 1px solid #EF4444; border-radius: 6px; padding: 0.85rem; text-align: left; font-size: 0.9rem; color: #F4F4FB;"><strong>Motivo del Bloqueo:</strong><br>${"{{ mensaje|escapejs }}"}</div><p style="margin-top: 1rem; font-size: 0.85rem; color: #A09EC7;">Debe ser desbloqueado por un Coordinador o Administrador para operar en la red.</p>`,
+        icon: "error",
+        background: "#11102E",
+        color: "#F4F4FB",
+        confirmButtonColor: "#EF4444",
+        confirmButtonText: "Cerrar Sesión",
+        showCancelButton: true,
+        cancelButtonText: "Volver al Inicio",
+        cancelButtonColor: "#3B33BC",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const logoutForm = document.querySelector('form[action$="/logout/"]');
+          if (logoutForm) logoutForm.submit();
+        } else {
+          window.location.href = "{% url 'portal_home' %}";
+        }
+      });
+    }
+  });
+</script>
 {% endblock %}
