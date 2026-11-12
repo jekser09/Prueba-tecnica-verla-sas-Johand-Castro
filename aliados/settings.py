@@ -221,6 +221,6 @@ RATE_LIMIT_ENABLED = config("RATE_LIMIT_ENABLED", default=True, cast=bool)
 RATE_LIMIT_WINDOW_SECONDS = config("RATE_LIMIT_WINDOW_SECONDS", default=60, cast=int)
 # Número máximo de solicitudes permitidas por ventana e IP en navegación general y operaciones CRUD.
 RATE_LIMIT_GLOBAL_REQUESTS = config("RATE_LIMIT_GLOBAL_REQUESTS", default=120, cast=int)
-# Número máximo de solicitudes permitidas por ventana e IP hacia /asistente/ para proteger la cuota gratuita de Google Gemini.
-RATE_LIMIT_AI_REQUESTS = config("RATE_LIMIT_AI_REQUESTS", default=10, cast=int)
+# Número máximo de solicitudes permitidas por ventana e IP hacia /asistente/ para proteger la cuota de Google Gemini (capa IP).
+RATE_LIMIT_AI_REQUESTS = config("RATE_LIMIT_AI_REQUESTS", default=30, cast=int)
 

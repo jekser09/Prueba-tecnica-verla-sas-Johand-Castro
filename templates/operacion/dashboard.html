@@ -111,18 +111,11 @@
               {% if actor.es_admin or actor.es_aliado %}
                 <div style="display: flex; gap: 0.5rem; width: 100%;">
                   <a href="{% url 'oferta_update' o.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; flex: 1; text-align: center;">Editar</a>
-                  <form action="{% url 'oferta_cancel_delete' o.pk %}" method="post" style="display: inline; margin: 0; flex: 1;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Cancelar oferta?', '¿Desea desactivar y cancelar esta oferta para el periodo?', 'Cancelar Oferta', true).then(r => { if(r.isConfirmed) this.submit(); });">
+                  <form action="{% url 'oferta_cancel_delete' o.pk %}" method="post" style="display: inline; margin: 0; flex: 1;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Eliminar oferta?', '¿Está seguro de eliminar permanentemente esta oferta comercial y su archivo gráfico?', 'Eliminar', true).then(r => { if(r.isConfirmed) this.submit(); });">
                     {% csrf_token %}
-                    <input type="hidden" name="action_type" value="cancelar">
-                    <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; width: 100%; color: var(--verla-status-inactive); border-color: rgba(245, 158, 11, 0.4);">Cancelar</button>
+                    <input type="hidden" name="action_type" value="eliminar">
+                    <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; width: 100%; color: var(--verla-status-blocked); border-color: rgba(239, 68, 68, 0.4);">Cancelar ✕</button>
                   </form>
-                  {% if actor.es_admin %}
-                    <form action="{% url 'oferta_cancel_delete' o.pk %}" method="post" style="display: inline; margin: 0;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Eliminar oferta?', '¿Está seguro de eliminar permanentemente esta oferta?', 'Eliminar', true).then(r => { if(r.isConfirmed) this.submit(); });">
-                      {% csrf_token %}
-                      <input type="hidden" name="action_type" value="eliminar">
-                      <button type="submit" class="outline secondary" title="Eliminar definitivamente" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; color: var(--verla-status-blocked); border-color: rgba(239, 68, 68, 0.4);">✕</button>
-                    </form>
-                  {% endif %}
                 </div>
               {% endif %}
             </footer>

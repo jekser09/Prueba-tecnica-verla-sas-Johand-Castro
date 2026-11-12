@@ -1,7 +1,7 @@
 /**
  * VERLA SAS - Global Floating Copilot Widget Logic
  * Manages chat lifecycle, drawer visibility, sessionStorage tab isolation,
- * human-in-the-loop decisions, and Gemini assistant interaction.
+ * human-in-the-loop decisions, Gemini assistant interaction, and token quota metering.
  */
 (function() {
   const STORAGE_KEY = 'verla_ai_chat_session';
@@ -16,6 +16,7 @@
     const input = document.getElementById('verla-ai-input');
     const messagesContainer = document.getElementById('verla-ai-messages');
     const chips = document.querySelectorAll('.ai-chip');
+    const quotaBadge = document.getElementById('verla-ai-quota-badge');
 
     if (!btn || !drawer || !form) {
       return;
@@ -23,10 +24,52 @@
 
     const consultarUrl = drawer.getAttribute('data-consultar-url') || '/asistente/api/consultar/';
     const veredictoUrl = drawer.getAttribute('data-veredicto-url') || '/asistente/api/veredicto/';
+    const estadoUrl = drawer.getAttribute('data-estado-url') || '/asistente/api/estado/';
 
     function getCsrfToken() {
       const csrfInput = form.querySelector('[name=csrfmiddlewaretoken]');
       return csrfInput ? csrfInput.value : '';
+    }
+
+    function updateQuotaBadge(cuota) {
+      if (!quotaBadge || !cuota) return;
+      const restantes = cuota.restantes_hoy !== undefined ? cuota.restantes_hoy : 50;
+      const limite = cuota.limite_dia || 50;
+      quotaBadge.textContent = `Disponibles: ${restantes}`;
+      quotaBadge.title = `${restantes} de ${limite} consultas disponibles hoy (máximo ${cuota.limite_2min || 15} cada 2 min)`;
+      if (restantes <= 5) {
+        quotaBadge.style.color = 'var(--verla-status-blocked)';
+        quotaBadge.style.borderColor = 'var(--verla-status-blocked)';
+      } else if (restantes <= 15) {
+        quotaBadge.style.color = 'var(--verla-status-inactive)';
+        quotaBadge.style.borderColor = 'var(--verla-status-inactive)';
+      } else {
+        quotaBadge.style.color = 'var(--verla-text-primary)';
+        quotaBadge.style.borderColor = 'rgba(255,255,255,0.15)';
+      }
+    }
+
+    function formatMarkdown(text) {
+      if (!text) return '';
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Encabezados ###
+      html = html.replace(/^### (.*$)/gim, '<h4 style="margin: 0.4rem 0 0.2rem 0; font-size: 0.95rem; color: #FFFFFF; font-weight: 600;">$1</h4>');
+      // Negritas **texto**
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #FFFFFF;">$1</strong>');
+      // Cursivas *texto*
+      html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      // Viñetas no ordenadas
+      html = html.replace(/^\s*-\s+(.*$)/gim, '<li style="margin-left: 1.1rem; font-size: 0.85rem; line-height: 1.4;">$1</li>');
+      // Viñetas ordenadas
+      html = html.replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li style="margin-left: 1.1rem; font-size: 0.85rem; line-height: 1.4;">$2</li>');
+      // Saltos de línea
+      html = html.replace(/\n\n+/g, '<br><br>');
+      html = html.replace(/\n/g, '<br>');
+      return html;
     }
 
     function loadMessages() {
@@ -38,9 +81,24 @@
         saved = [];
       }
 
-      if (saved.length === 0) {
-        appendBubble('assistant', '¡Hola! Soy tu Copiloto comercial de VERLA SAS. ¿En qué te puedo apoyar hoy? Puedes pedirme redactar un copy de oferta o analizar el cumplimiento de metas.');
-      } else {
+      // Consultar estado de sesión, rol y cuota inicial
+      fetch(estadoUrl)
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok) {
+            updateQuotaBadge(data.cuota);
+            if (saved.length === 0) {
+              appendBubble('assistant', data.mensaje_inicial);
+            }
+          }
+        })
+        .catch(() => {
+          if (saved.length === 0) {
+            appendBubble('assistant', '¡Hola! Soy tu Copiloto comercial de VERLA SAS. Tienes 50 consultas disponibles hoy (máximo 15 cada 2 min). ¿En qué te puedo colaborar hoy?');
+          }
+        });
+
+      if (saved.length > 0) {
         saved.forEach(msg => {
           renderBubble(msg.role, msg.text, msg.log_id, false);
         });
@@ -64,13 +122,14 @@
       bubble.className = `ai-bubble ${role}`;
 
       if (role === 'assistant') {
-        let contentHtml = `<div>${text}</div>`;
+        const formattedHtml = formatMarkdown(text);
+        let contentHtml = `<div class="ai-content-body">${formattedHtml}</div>`;
         if (logId) {
           contentHtml += `
             <div class="ai-actions-bar">
-              <button type="button" class="ai-action-btn copy-btn">📋 Copiar</button>
-              <button type="button" class="ai-action-btn accept-btn">✅ Aceptar</button>
-              <button type="button" class="ai-action-btn reject-btn">✕ Descartar</button>
+              <button type="button" class="ai-action-btn copy-btn" title="Copiar texto de la propuesta">📋 Copiar</button>
+              <button type="button" class="ai-action-btn accept-btn" title="Aprobar borrador human-in-the-loop">✅ Aceptar</button>
+              <button type="button" class="ai-action-btn reject-btn" title="Descartar borrador">✕ Descartar</button>
             </div>
           `;
         }
@@ -85,7 +144,7 @@
             copyBtn.addEventListener('click', () => {
               navigator.clipboard.writeText(text);
               if (window.VerlaAlert) {
-                VerlaAlert.toast('success', 'Texto copiado');
+                VerlaAlert.toast('success', 'Propuesta copiada al portapapeles');
               }
             });
           }
@@ -156,19 +215,33 @@
       });
     }
 
-    // Exponer globalmente para retrocompatibilidad
     window.veredictoHumano = veredictoHumano;
 
-    // Eventos UI
     btn.addEventListener('click', () => toggleDrawer(!drawer.classList.contains('is-open')));
     if (closeBtn) {
       closeBtn.addEventListener('click', () => toggleDrawer(false));
     }
 
+    // Cierre al hacer clic fuera del drawer y del botón de activación
+    document.addEventListener('click', function(e) {
+      if (!drawer.classList.contains('is-open')) return;
+
+      const target = e.target;
+      const isInsideDrawer = drawer.contains(target);
+      const isInsideBtn = btn.contains(target);
+      const targetEl = target instanceof Element ? target : target?.parentElement;
+      const isSwal = targetEl && (targetEl.closest('.swal2-container') || targetEl.closest('.swal2-popup'));
+      const isAiAction = targetEl && targetEl.closest('.ai-action-btn');
+
+      if (!isInsideDrawer && !isInsideBtn && !isSwal && !isAiAction) {
+        toggleDrawer(false);
+      }
+    });
+
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         if (window.VerlaAlert) {
-          VerlaAlert.confirm('¿Reiniciar chat?', 'Se borrará el historial de la conversación actual.', 'Limpiar')
+          VerlaAlert.confirm('¿Reiniciar chat?', 'Se limpiará el historial de la conversación actual.', 'Limpiar')
           .then(result => {
             if (result.isConfirmed) {
               sessionStorage.removeItem(STORAGE_KEY);
@@ -217,29 +290,37 @@
           current_path: window.location.pathname,
         }),
       })
-      .then(res => res.json())
-      .then(data => {
+      .then(res => {
+        return res.json().then(data => ({ status: res.status, data }));
+      })
+      .then(({ status, data }) => {
         if (loadingBubble.parentNode) {
           messagesContainer.removeChild(loadingBubble);
         }
         input.disabled = false;
         input.focus();
 
-        if (data.ok) {
+        if (data.cuota) {
+          updateQuotaBadge(data.cuota);
+        }
+
+        if (status === 200 && data.ok) {
           let textoRespuesta = '';
           const resp = data.respuesta;
-          if (resp.titulo_sugerido && resp.descripcion_comercial) {
-            textoRespuesta = `<strong>${resp.titulo_sugerido}</strong><br><br>${resp.descripcion_comercial}`;
+          if (resp.texto_markdown) {
+            textoRespuesta = resp.texto_markdown;
+          } else if (resp.titulo_sugerido && resp.descripcion_comercial) {
+            textoRespuesta = `### 🎁 ${resp.titulo_sugerido}\n\n**Descripción Comercial:**\n${resp.descripcion_comercial}`;
             if (resp.puntos_clave && resp.puntos_clave.length) {
-              textoRespuesta += `<br><br><em>Puntos Clave:</em><ul>${resp.puntos_clave.map(p => `<li>${p}</li>`).join('')}</ul>`;
+              textoRespuesta += `\n\n**Condiciones Clave:**\n` + resp.puntos_clave.map(p => `- ${p}`).join('\n');
             }
           } else if (resp.diagnostico_general) {
-            textoRespuesta = `<strong>Diagnóstico:</strong> ${resp.diagnostico_general}<br><br>`;
+            textoRespuesta = `**Diagnóstico:** ${resp.diagnostico_general}\n\n`;
             if (resp.alertas_criticas) {
-              textoRespuesta += `<strong>Alertas:</strong><ul>${resp.alertas_criticas.map(a => `<li>${a}</li>`).join('')}</ul>`;
+              textoRespuesta += `**Alertas:**\n` + resp.alertas_criticas.map(a => `- ${a}`).join('\n') + `\n\n`;
             }
             if (resp.plan_de_accion) {
-              textoRespuesta += `<strong>Plan de Acción:</strong><ol>${resp.plan_de_accion.map(p => `<li>${p}</li>`).join('')}</ol>`;
+              textoRespuesta += `**Plan de Acción:**\n` + resp.plan_de_accion.map((p, i) => `${i+1}. ${p}`).join('\n');
             }
           } else if (resp.respuesta_asistente) {
             textoRespuesta = resp.respuesta_asistente;
@@ -254,6 +335,11 @@
           if (data.modo === 'FALLBACK_LOCAL' && window.VerlaAlert) {
             VerlaAlert.toast('warning', 'Modo de contingencia activo (Fallback)');
           }
+        } else if (status === 429) {
+          appendBubble('assistant', `⚠️ **Límite de Consultas:** ${data.error || 'Has superado el límite de consultas permitidas.'}`);
+          if (window.VerlaAlert) {
+            VerlaAlert.warning('Límite de Consultas', data.error);
+          }
         } else {
           appendBubble('assistant', `⚠️ Error: ${data.error || 'No se pudo procesar la consulta.'}`);
         }
@@ -267,7 +353,6 @@
       });
     });
 
-    // Inicializar historial y visibilidad
     loadMessages();
     if (sessionStorage.getItem(STATE_KEY) === 'true') {
       toggleDrawer(true);

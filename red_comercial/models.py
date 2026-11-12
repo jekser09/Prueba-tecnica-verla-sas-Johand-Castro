@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from django.conf import settings
@@ -33,6 +34,25 @@ def _serializar_valor_auditoria(valor: Any) -> Any:
     return str(valor)
 
 
+def _eliminar_archivo_storage_seguro(storage: Any, path: str | None) -> None:
+    """Elimina de forma segura un archivo del storage sin lanzar excepciones por bloqueo de Windows."""
+    if not path:
+        return
+    try:
+        if storage.exists(path):
+            storage.delete(path)
+    except Exception:
+        import gc, time
+        gc.collect()
+        time.sleep(0.05)
+        try:
+            if storage.exists(path):
+                storage.delete(path)
+        except Exception:
+            pass
+
+
+
 class AuditLog(models.Model):
     """
     Bitácora inmutable de cambios e historial de auditoría para entidades del portal.
@@ -64,6 +84,11 @@ class AuditLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.entidad}#{self.registro_id} [{self.accion}] v{self.version_resultante}"
+
+    @property
+    def cambios_json_str(self) -> str:
+        """Diferencial de cambios formateado como cadena JSON válida."""
+        return json.dumps(self.cambios_json or {}, ensure_ascii=False)
 
 
 class VersionedModel(models.Model):
@@ -102,12 +127,52 @@ class VersionedModel(models.Model):
         Actualiza atómicamente los campos indicados validando que `version == expected_version`.
         Incrementa `version` en +1 y registra el diferencial antes/después en `AuditLog`.
         Lanza `ConcurrentModificationError` si la versión en base de datos ya cambió.
+        Maneja de forma segura campos FileField / ImageField almacenando el archivo físico
+        y depurando archivos obsoletos.
         """
         with transaction.atomic():
+            instancia_actual = type(self).objects.filter(pk=self.pk).first()
+            instancia_ref = instancia_actual if instancia_actual is not None else self
             valores_previos = {
-                campo: _serializar_valor_auditoria(getattr(self, campo))
+                campo: _serializar_valor_auditoria(getattr(instancia_ref, campo))
                 for campo in fields
             }
+
+            from django.core.files.base import File
+            from django.core.files.uploadedfile import UploadedFile
+
+            archivos_guardados = []
+            archivos_previos_a_eliminar = []
+
+            for campo, valor in list(fields.items()):
+                if isinstance(valor, (UploadedFile, File)):
+                    model_field = self._meta.get_field(campo)
+                    archivo_previo = getattr(instancia_ref, campo)
+                    if archivo_previo and getattr(archivo_previo, "name", None):
+                        archivos_previos_a_eliminar.append(archivo_previo)
+
+                    if callable(model_field.upload_to):
+                        nombre_relativo = model_field.upload_to(self, valor.name)
+                    elif model_field.upload_to:
+                        from django.utils import timezone as dj_tz
+                        nombre_relativo = dj_tz.now().strftime(str(model_field.upload_to)) + valor.name
+                    else:
+                        nombre_relativo = valor.name
+
+                    path_guardado = model_field.storage.save(nombre_relativo, valor)
+                    fields[campo] = path_guardado
+                    archivos_guardados.append((model_field.storage, path_guardado))
+                elif valor in (None, "", False):
+                    try:
+                        model_field = self._meta.get_field(campo)
+                        if hasattr(model_field, "storage"):
+                            archivo_previo = getattr(instancia_ref, campo)
+                            if archivo_previo and getattr(archivo_previo, "name", None):
+                                archivos_previos_a_eliminar.append(archivo_previo)
+                            fields[campo] = None
+                    except Exception:
+                        pass
+
             filas_afectadas = (
                 type(self)
                 .objects.filter(pk=self.pk, version=expected_version)
@@ -118,9 +183,25 @@ class VersionedModel(models.Model):
                 )
             )
             if filas_afectadas == 0:
+                for storage, path in archivos_guardados:
+                    if storage.exists(path):
+                        storage.delete(path)
                 raise ConcurrentModificationError(
                     "El registro fue modificado por otro usuario. Recargue antes de guardar."
                 )
+
+            # Si la actualización fue exitosa, eliminamos los archivos obsoletos reemplazados
+            guardados_paths = [p for _, p in archivos_guardados]
+            for archivo_viejo in archivos_previos_a_eliminar:
+                old_name = getattr(archivo_viejo, "name", None)
+                old_storage = getattr(archivo_viejo, "storage", None)
+                if hasattr(archivo_viejo, "close"):
+                    try:
+                        archivo_viejo.close()
+                    except Exception:
+                        pass
+                if old_name and old_storage and old_name not in guardados_paths:
+                    _eliminar_archivo_storage_seguro(old_storage, old_name)
 
             self.refresh_from_db()
             cambios = {

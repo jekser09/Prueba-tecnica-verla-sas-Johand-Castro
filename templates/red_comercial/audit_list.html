@@ -50,7 +50,7 @@
           <th>Acción</th>
           <th>Usuario Actor</th>
           <th>Versión</th>
-          <th>Detalle de Cambios (Antes / Después)</th>
+          <th style="text-align: right;">Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -70,6 +70,8 @@
                 <span class="badge-status inactivo">Cambio Estado</span>
               {% elif log.accion == 'CREACION' %}
                 <span class="badge-status activo">Creación</span>
+              {% elif log.accion == 'ELIMINACION' %}
+                <span class="badge-status bloqueado">Eliminación</span>
               {% else %}
                 <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700;">{{ log.get_accion_display }}</span>
               {% endif %}
@@ -80,15 +82,21 @@
             <td>
               <code>v{{ log.version_resultante }}</code>
             </td>
-            <td>
-              {% if log.cambios_json %}
-                <details style="margin: 0; font-size: 0.8rem;">
-                  <summary style="cursor: pointer; color: var(--verla-brand-indigo-hover);">Ver {{ log.cambios_json.keys|length }} campo(s) modificados</summary>
-                  <pre style="background: var(--verla-bg-canvas); padding: 0.5rem; border-radius: 4px; max-width: 380px; overflow-x: auto; margin-top: 0.5rem;"><code>{{ log.cambios_json|pprint }}</code></pre>
-                </details>
-              {% else %}
-                <small style="color: var(--verla-text-muted);">Sin cambios de campos.</small>
-              {% endif %}
+            <td style="text-align: right; white-space: nowrap;">
+              <button type="button"
+                      class="outline contrast btn-ver-detalle-audit"
+                      data-log-id="{{ log.id }}"
+                      data-fecha="{{ log.fecha_evento|date:'Y-m-d H:i:s' }}"
+                      data-entidad="{{ log.entidad }}"
+                      data-registro-id="{{ log.registro_id }}"
+                      data-accion="{{ log.get_accion_display }}"
+                      data-accion-codigo="{{ log.accion }}"
+                      data-usuario="{{ log.usuario.username|default:'Sistema / Demo' }}"
+                      data-version="v{{ log.version_resultante }}"
+                      style="padding: 0.25rem 0.65rem; font-size: 0.78rem; margin: 0; display: inline-flex; align-items: center; gap: 0.35rem;">
+                🔍 Ver Detalle
+              </button>
+              <script id="audit-json-{{ log.id }}" type="application/json">{{ log.cambios_json_str|safe }}</script>
             </td>
           </tr>
         {% empty %}
@@ -117,4 +125,225 @@
     {% endif %}
   </article>
 </section>
+
+<!-- Modal de Detalle de Auditoría -->
+<dialog id="modal-detalle-audit" style="border: 1px solid var(--verla-border); background: var(--verla-bg-surface); color: var(--verla-text-primary); border-radius: 8px; max-width: 720px; width: 92vw; padding: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+  <article style="margin: 0; padding: 0; background: transparent; border: none;">
+    <!-- Header -->
+    <header style="display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--verla-border); background: var(--verla-bg-elevated); border-radius: 8px 8px 0 0; margin: 0;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <span style="font-size: 1.1rem;">🛡️</span>
+        <strong id="modal-audit-titulo" style="font-size: 1rem; color: var(--verla-text-primary);">Detalle de Registro de Auditoría</strong>
+      </div>
+      <button type="button" id="btn-cerrar-modal-audit-x" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--verla-text-muted); line-height: 1; padding: 0 0.25rem; margin: 0;">✕</button>
+    </header>
+
+    <!-- Body -->
+    <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; max-height: 72vh; overflow-y: auto;">
+      <!-- Grid de Metadatos -->
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin: 0;">
+        <div style="background: var(--verla-bg-canvas); padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid var(--verla-border);">
+          <small style="color: var(--verla-text-muted); display: block; font-size: 0.72rem; text-transform: uppercase;">Entidad Afectada</small>
+          <strong id="modal-audit-entidad" style="font-size: 0.88rem; color: var(--verla-text-primary);">-</strong>
+        </div>
+        <div style="background: var(--verla-bg-canvas); padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid var(--verla-border);">
+          <small style="color: var(--verla-text-muted); display: block; font-size: 0.72rem; text-transform: uppercase;">Acción Operativa</small>
+          <div id="modal-audit-accion" style="margin-top: 0.2rem;">-</div>
+        </div>
+        <div style="background: var(--verla-bg-canvas); padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid var(--verla-border);">
+          <small style="color: var(--verla-text-muted); display: block; font-size: 0.72rem; text-transform: uppercase;">Usuario Actor</small>
+          <strong id="modal-audit-usuario" style="font-size: 0.88rem; color: var(--verla-text-primary);">-</strong>
+        </div>
+        <div style="background: var(--verla-bg-canvas); padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid var(--verla-border);">
+          <small style="color: var(--verla-text-muted); display: block; font-size: 0.72rem; text-transform: uppercase;">Versión Resultante</small>
+          <code id="modal-audit-version" style="font-size: 0.85rem; color: var(--verla-brand-indigo-hover);">-</code>
+        </div>
+      </div>
+
+      <div style="font-size: 0.8rem; color: var(--verla-text-muted);">
+        📅 Fecha y hora del evento: <span id="modal-audit-fecha" style="color: var(--verla-text-primary); font-weight: 600;">-</span>
+      </div>
+
+      <!-- Sección: Tabla de Cambios Antes / Después -->
+      <div id="modal-audit-seccion-tabla" style="display: none;">
+        <label style="font-weight: 600; color: var(--verla-brand-indigo-hover); font-size: 0.85rem; margin-bottom: 0.35rem; display: block;">
+          🔄 Comparativa de Campos Modificados:
+        </label>
+        <div style="overflow-x: auto; background: var(--verla-bg-canvas); border-radius: 6px; border: 1px solid var(--verla-border);">
+          <table role="grid" style="margin: 0; font-size: 0.82rem;">
+            <thead>
+              <tr>
+                <th style="padding: 0.4rem 0.6rem;">Campo</th>
+                <th style="padding: 0.4rem 0.6rem; color: var(--verla-status-inactive);">Valor Anterior</th>
+                <th style="padding: 0.4rem 0.6rem; color: var(--verla-status-active);">Valor Resultante</th>
+              </tr>
+            </thead>
+            <tbody id="modal-audit-tabla-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sección: JSON Raw -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+          <label style="font-weight: 600; color: var(--verla-brand-indigo-hover); font-size: 0.85rem; margin: 0;">
+            ⚙️ Estructura Completa del Diferencial (JSON):
+          </label>
+          <span style="font-size: 0.75rem; color: var(--verla-text-muted);">application/json</span>
+        </div>
+        <pre style="background: var(--verla-bg-canvas); border: 1px solid var(--verla-border); padding: 0.85rem; border-radius: 6px; max-height: 240px; overflow: auto; margin: 0;"><code id="modal-audit-json-body" style="font-size: 0.8rem; font-family: monospace; color: #E2E8F0;"></code></pre>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; border-top: 1px solid var(--verla-border); background: var(--verla-bg-elevated); border-radius: 0 0 8px 8px; margin: 0;">
+      <button type="button" id="btn-modal-audit-copiar-json" class="outline contrast" style="padding: 0.35rem 0.8rem; font-size: 0.8rem; margin: 0; display: inline-flex; align-items: center; gap: 0.35rem;">
+        📋 Copiar JSON
+      </button>
+      <button type="button" id="btn-modal-audit-cerrar-footer" class="contrast" style="padding: 0.35rem 1rem; font-size: 0.8rem; margin: 0;">
+        Cerrar
+      </button>
+    </footer>
+  </article>
+</dialog>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('modal-detalle-audit');
+  const btnCloseX = document.getElementById('btn-cerrar-modal-audit-x');
+  const btnCloseFooter = document.getElementById('btn-modal-audit-cerrar-footer');
+  const btnCopiarJson = document.getElementById('btn-modal-audit-copiar-json');
+
+  let currentJsonString = '{}';
+
+  function abrirModal(btn) {
+    const logId = btn.getAttribute('data-log-id');
+    const fecha = btn.getAttribute('data-fecha');
+    const entidad = btn.getAttribute('data-entidad');
+    const registroId = btn.getAttribute('data-registro-id');
+    const accion = btn.getAttribute('data-accion');
+    const accionCodigo = btn.getAttribute('data-accion-codigo');
+    const usuario = btn.getAttribute('data-usuario');
+    const version = btn.getAttribute('data-version');
+
+    const jsonEl = document.getElementById(`audit-json-${logId}`);
+    let jsonParsed = {};
+    try {
+      jsonParsed = jsonEl ? JSON.parse(jsonEl.textContent || '{}') : {};
+    } catch (e) {
+      jsonParsed = { raw: jsonEl ? jsonEl.textContent : '' };
+    }
+
+    currentJsonString = JSON.stringify(jsonParsed, null, 2);
+
+    document.getElementById('modal-audit-titulo').textContent = `Auditoría #${logId} — ${entidad} #${registroId}`;
+    document.getElementById('modal-audit-entidad').textContent = `${entidad} #${registroId}`;
+    document.getElementById('modal-audit-usuario').textContent = usuario;
+    document.getElementById('modal-audit-fecha').textContent = fecha;
+    document.getElementById('modal-audit-version').textContent = version;
+
+    const accionContainer = document.getElementById('modal-audit-accion');
+    if (accionCodigo === 'BLOQUEO' || accionCodigo === 'ELIMINACION') {
+      accionContainer.innerHTML = `<span class="badge-status bloqueado">${accion}</span>`;
+    } else if (accionCodigo === 'CAMBIO_ESTADO') {
+      accionContainer.innerHTML = `<span class="badge-status inactivo">${accion}</span>`;
+    } else if (accionCodigo === 'CREACION') {
+      accionContainer.innerHTML = `<span class="badge-status activo">${accion}</span>`;
+    } else {
+      accionContainer.innerHTML = `<span style="font-size:0.75rem; text-transform:uppercase; font-weight:700;">${accion}</span>`;
+    }
+
+    // Tabla de antes / después
+    const seccionTabla = document.getElementById('modal-audit-seccion-tabla');
+    const tablaBody = document.getElementById('modal-audit-tabla-body');
+    tablaBody.innerHTML = '';
+
+    const keys = Object.keys(jsonParsed);
+    let tieneDiff = false;
+
+    keys.forEach(campo => {
+      const val = jsonParsed[campo];
+      if (val && typeof val === 'object' && ('antes' in val || 'despues' in val)) {
+        tieneDiff = true;
+        const tr = document.createElement('tr');
+        const antesStr = val.antes !== null && val.antes !== undefined ? String(val.antes) : '<em>(vacío)</em>';
+        const despuesStr = val.despues !== null && val.despues !== undefined ? String(val.despues) : '<em>(vacío)</em>';
+        tr.innerHTML = `
+          <td style="padding:0.4rem 0.6rem;"><code>${campo}</code></td>
+          <td style="padding:0.4rem 0.6rem; color:var(--verla-text-muted); font-size:0.8rem;">${antesStr}</td>
+          <td style="padding:0.4rem 0.6rem; color:var(--verla-text-primary); font-weight:600; font-size:0.8rem;">${despuesStr}</td>
+        `;
+        tablaBody.appendChild(tr);
+      } else {
+        // Snapshot plano (ej. Creación o Eliminación)
+        const tr = document.createElement('tr');
+        const valStr = val !== null && val !== undefined ? (typeof val === 'object' ? JSON.stringify(val) : String(val)) : '<em>(vacío)</em>';
+        tr.innerHTML = `
+          <td style="padding:0.4rem 0.6rem;"><code>${campo}</code></td>
+          <td style="padding:0.4rem 0.6rem; color:var(--verla-text-muted); font-size:0.8rem;">-</td>
+          <td style="padding:0.4rem 0.6rem; color:var(--verla-text-primary); font-size:0.8rem;">${valStr}</td>
+        `;
+        tablaBody.appendChild(tr);
+      }
+    });
+
+    seccionTabla.style.display = keys.length > 0 ? 'block' : 'none';
+    document.getElementById('modal-audit-json-body').textContent = currentJsonString;
+
+    if (modal.showModal) {
+      modal.showModal();
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  function cerrarModal() {
+    if (modal.close) {
+      modal.close();
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
+  document.querySelectorAll('.btn-ver-detalle-audit').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      abrirModal(this);
+    });
+  });
+
+  if (btnCloseX) btnCloseX.addEventListener('click', cerrarModal);
+  if (btnCloseFooter) btnCloseFooter.addEventListener('click', cerrarModal);
+
+  // Cerrar al hacer click en el backdrop del diálogo
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        cerrarModal();
+      }
+    });
+  }
+
+  if (btnCopiarJson) {
+    btnCopiarJson.addEventListener('click', function() {
+      navigator.clipboard.writeText(currentJsonString).then(() => {
+        const textoOriginal = btnCopiarJson.innerHTML;
+        btnCopiarJson.innerHTML = '✅ ¡Copiado!';
+        btnCopiarJson.style.borderColor = 'var(--verla-status-active)';
+        btnCopiarJson.style.color = 'var(--verla-status-active)';
+        setTimeout(() => {
+          btnCopiarJson.innerHTML = textoOriginal;
+          btnCopiarJson.style.borderColor = '';
+          btnCopiarJson.style.color = '';
+        }, 2000);
+      }).catch(err => {
+        console.error('Error al copiar JSON:', err);
+      });
+    });
+  }
+});
+</script>
 {% endblock %}

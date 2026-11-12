@@ -219,6 +219,15 @@ def oferta_periodo_create_view(request: HttpRequest) -> HttpResponse:
         form = OfertaPeriodoForm(request.POST, request.FILES)
         if form.is_valid():
             oferta = form.save()
+            oferta.registrar_creacion(
+                usuario=request.user,
+                detalle={
+                    "titulo": oferta.titulo,
+                    "periodo": oferta.periodo,
+                    "activa": oferta.activa,
+                    "imagen": str(oferta.imagen.name) if oferta.imagen else None,
+                },
+            )
             messages.success(request, f"Oferta '{oferta.titulo}' creada con éxito.")
             return redirect(reverse("op_default") + f"?periodo={oferta.periodo}")
     else:
@@ -236,7 +245,7 @@ def oferta_periodo_update_view(request: HttpRequest, pk: int) -> HttpResponse:
         expected_version = int(request.POST.get("version", oferta.version))
         if form.is_valid():
             try:
-                # Si se sube una nueva imagen se actualiza en el campo
+                # Si se sube una nueva imagen o se limpia, se actualiza el campo
                 campos_update = {
                     "titulo": form.cleaned_data["titulo"],
                     "descripcion": form.cleaned_data["descripcion"],
@@ -246,8 +255,10 @@ def oferta_periodo_update_view(request: HttpRequest, pk: int) -> HttpResponse:
                     "activa": form.cleaned_data["activa"],
                     "aliado": form.cleaned_data["aliado"],
                 }
-                if form.cleaned_data.get("imagen"):
-                    campos_update["imagen"] = form.cleaned_data["imagen"]
+                if request.FILES.get("imagen"):
+                    campos_update["imagen"] = request.FILES["imagen"]
+                elif form.cleaned_data.get("imagen") is False:
+                    campos_update["imagen"] = None
 
                 oferta.optimistic_update(
                     expected_version=expected_version,

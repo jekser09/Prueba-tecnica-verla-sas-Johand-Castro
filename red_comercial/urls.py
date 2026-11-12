@@ -16,6 +16,7 @@ from red_comercial.views import (
     coordinador_update_view,
     red_comercial_dashboard_view,
     vendedor_create_view,
+    vendedor_delete_view,
     vendedor_list_view,
     vendedor_update_view,
 )
@@ -41,6 +42,7 @@ urlpatterns = [
     path("vendedores/", vendedor_list_view, name="vendedor_list"),
     path("vendedores/nuevo/", vendedor_create_view, name="vendedor_create"),
     path("vendedores/<int:pk>/editar/", vendedor_update_view, name="vendedor_update"),
+    path("vendedores/<int:pk>/eliminar/", vendedor_delete_view, name="vendedor_delete"),
     # Auditoría
     path("auditoria/", audit_log_list_view, name="audit_log_list"),
 ]

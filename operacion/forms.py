@@ -68,6 +68,7 @@ class OfertaPeriodoForm(forms.ModelForm):
         widgets = {
             "titulo": forms.TextInput(attrs={"placeholder": "Ej: Bono Fibra Óptica 300MB"}),
             "descripcion": forms.Textarea(attrs={"rows": 4, "placeholder": "Condiciones comerciales, comisiones y vigencia..."}),
+            "imagen": forms.FileInput(attrs={"accept": "image/*", "id": "id_imagen"}),
             "periodo": forms.TextInput(attrs={"placeholder": "YYYY-MM (ej: 2026-03)"}),
             "fecha_inicio": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "fecha_fin": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),

@@ -12,22 +12,23 @@ Authoritative technical and architectural contract for AI coding agents working 
 1. **Commercial Hierarchy**:
    - **`Aliado` (Commercial Ally)**: Contract owner responsible for its commercial network.
    - **`Coordinador` (Coordinator)**: Belongs to an `Aliado` and supervises assigned sellers (`Vendedor`).
-   - **`Vendedor` (Seller / Employee Record)**: Employee with personal record (`documento`, `contacto`, `cargo`, `ciudad_base`, `estado`, `fecha_ingreso`), assigned to a responsible `Coordinador`, and able to operate across **one or multiple `Ciudad` (cities)**.
+   - **`Vendedor` (Seller / Employee Record)**: Employee with personal record (`documento`, `contacto`, `cargo`, `ciudad_base`, `estado`, `fecha_ingreso`), assigned to a responsible `Coordinador`, and able to operate across **one or multiple `Ciudad` (cities)**. Adheres strictly to **Third Normal Form (3FN)**: does not store redundant `aliado_id` (derived dynamically via `coordinador.aliado`).
 2. **Operational States & Blocking Control**:
    - Every `Vendedor` has an explicit state: `ACTIVO`, `INACTIVO`, or `BLOQUEADO`.
-   - Sellers in `BLOQUEADO` or `INACTIVO` state must be restricted from active commercial operations and portal views according to role/state guards.
+   - Sellers in `BLOQUEADO` or `INACTIVO` state must be restricted from active commercial operations and portal views according to role/state guards (`puede_operar`).
 3. **Monthly Goals vs. Actual Results**:
-   - Tracked per month (`YYYY-MM`) with aggregation and drill-down by **`Vendedor`**, **`Coordinador`**, and **`Aliado`**.
+   - Tracked per month (`YYYY-MM`) with aggregation and drill-down by **`Vendedor`**, **`Coordinador`**, and **`Aliado`**, enforced by unique composite constraint `uniq_meta_vendedor_periodo (vendedor, periodo)`.
 4. **Period Offers (`OfertaPeriodo`)**:
-   - Time-bounded commercial offers containing dynamic text and variable images (`ImageField`), visible to active sellers operating in the target scope.
+   - Time-bounded commercial offers containing dynamic text and variable images (`ImageField`), visible to active sellers operating in the target scope. Promotional images are partitioned via `ruta_imagen_oferta` (`ofertas/<año>/<mes>/audit_oferta_<id>_<periodo>_<timestamp>_<slug>.<ext>`) with physical file deletion on update and deletion.
 5. **Audit Trail & Concurrency Control**:
-   - **Change History (`AuditLog`)**: Every create, update, and state transition across core entities records actor, timestamp, entity, before/after JSON diff, and resulting version.
+   - **Change History (`AuditLog`)**: Every create, update, and state transition across core entities records actor, timestamp, entity, before/after JSON diff (`cambios_json_str`), and resulting version.
    - **Optimistic Concurrency Control (`version`)**: Editable entities carry an integer `version` field. Updates must validate `WHERE id = :id AND version = :expected_version` and atomically increment `version = F("version") + 1`. Stale writes must be rejected with HTTP `409 Conflict`.
 6. **Controlled AI Integration (`asistente_ia`)**:
-   - Powered by **Google Gemini API (`gemini-2.5-flash`)** over async HTTP (`httpx.AsyncClient`).
+   - Powered by **Google Gemini API (`gemini-3.5-flash-lite`)** over async HTTP (`httpx.AsyncClient`).
    - **Global Floating Copilot (Omnipresent Widget)**: The assistant is not restricted to an isolated screen; it is integrated across all views via a floating action button and collapsible side drawer (`templates/core/asistente_widget.html`) with screen-aware context injection (`current_path`).
    - **Tab-Isolated Client State (`sessionStorage`)**: Conversation history and drawer open/close state persist across in-portal navigation without server database bloat. To protect privacy across shared workstations, `sessionStorage` is automatically wiped on tab closure, logout, or demo role switching, preventing subsequent users or DevTools inspections from accessing previous conversations.
-   - Operates strictly under **human-in-the-loop** control (drafts commercial offer copy and analyzes monthly goal gaps without mutating domain records directly) and logs latency, token usage, and human verdict (`ACEPTADO`, `EDITADO`, `DESCARTADO`) in `AIAuditLog`.
+   - Operates strictly under **human-in-the-loop** control (drafts commercial offer copy and analyzes monthly goal gaps without mutating domain records directly) and logs latency, token usage, and human verdict (`ACEPTADO`, `EDITADO`, `DESCARTADO`) in `AIAuditLog` (with property `respuesta_json_str`).
+   - **Token Rationing & User Quotas**: Limits requests to **15 queries per 2 minutes** and **50 queries per calendar day** per user, enforced over `AIAuditLog` with a composite database index `idx_aiaudit_user_created (usuario_id, creado_en)`. Applies a strict ceiling of `maxOutputTokens: 600` and maximum prompt length of 400 characters, displaying real-time quota status (`Disponibles: 50`) in the drawer header.
    - **Resilience & Fallback**: In the event of rate exhaustion (HTTP 429), network timeout, or absent `GEMINI_API_KEY`, gracefully serves deterministic, realistic rule-based suggestions with SweetAlert2 notifications.
 
 ---

@@ -36,7 +36,7 @@ class AIAuditLog(models.Model):
         choices=CasoUsoIA.choices,
         db_index=True,
     )
-    modelo = models.CharField("Modelo IA", max_length=60, default="gemini-2.5-flash")
+    modelo = models.CharField("Modelo IA", max_length=60, default="gemini-3.5-flash-lite")
     prompt_resumen = models.TextField("Resumen del prompt enviado")
     respuesta_json = models.JSONField("Respuesta estructurada (JSON)", default=dict)
     latencia_ms = models.PositiveIntegerField("Latencia (ms)", default=0)
@@ -48,13 +48,21 @@ class AIAuditLog(models.Model):
         default=DecisionHumanaIA.PENDIENTE,
         db_index=True,
     )
-    creado_en = models.DateTimeField("Creado en", auto_now_add=True)
+    creado_en = models.DateTimeField("Creado en", auto_now_add=True, db_index=True)
     actualizado_en = models.DateTimeField("Actualizado en", auto_now=True)
+
+    @property
+    def respuesta_json_str(self) -> str:
+        import json
+        return json.dumps(self.respuesta_json or {}, ensure_ascii=False)
 
     class Meta:
         verbose_name = "Auditoría de IA"
         verbose_name_plural = "Auditorías de IA"
         ordering = ["-creado_en", "-id"]
+        indexes = [
+            models.Index(fields=["usuario", "creado_en"], name="idx_aiaudit_user_created"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.caso_uso} [{self.decision_humana}] ({self.latencia_ms} ms)"

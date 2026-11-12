@@ -93,9 +93,13 @@
               {% endif %}
             </td>
             <td><small>v{{ v.version }}</small></td>
-            <td>
+            <td style="white-space: nowrap;">
               {% if actor.es_admin or actor.es_coordinador and v.coordinador_id == actor.objeto.pk %}
                 <a href="{% url 'vendedor_update' v.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+                <form action="{% url 'vendedor_delete' v.pk %}" method="post" style="display: inline; margin: 0;" onsubmit="event.preventDefault(); VerlaAlert.confirm('¿Eliminar vendedor?', '¿Está seguro de eliminar al vendedor \'{{ v.nombre_completo|escapejs }}\' (Cédula: {{ v.documento|escapejs }})? Esta acción quedará registrada en auditoría.', 'Eliminar', true).then(r => { if(r.isConfirmed) this.submit(); });">
+                  {% csrf_token %}
+                  <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; margin: 0; color: var(--verla-status-blocked); border-color: rgba(239, 68, 68, 0.4);">Eliminar</button>
+                </form>
               {% else %}
                 <button disabled class="outline secondary" title="Acción reservada para Coordinador a cargo o Administrador" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: not-allowed; opacity: 0.4;">Editar</button>
               {% endif %}

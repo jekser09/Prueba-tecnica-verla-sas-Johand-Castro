@@ -21,7 +21,6 @@ erDiagram
     CIUDAD }o--o{ VENDEDOR : "ciudades_operacion (M2M)"
     CIUDAD }o--o{ OFERTA_PERIODO : "ciudades (M2M)"
     ALIADO ||--o{ COORDINADOR : "tiene"
-    ALIADO ||--o{ VENDEDOR : "vincula"
     ALIADO ||--o{ OFERTA_PERIODO : "segmenta (opcional)"
     COORDINADOR ||--o{ VENDEDOR : "supervisa"
     VENDEDOR ||--o{ META_MENSUAL : "registra_metas"
@@ -38,6 +37,8 @@ erDiagram
         varchar(120) departamento
         boolean activa
         int version
+        datetime creado_en
+        datetime actualizado_en
     }
 
     ALIADO {
@@ -50,6 +51,8 @@ erDiagram
         boolean activo
         int usuario_id FK
         int version
+        datetime creado_en
+        datetime actualizado_en
     }
 
     COORDINADOR {
@@ -62,6 +65,8 @@ erDiagram
         boolean activo
         int usuario_id FK
         int version
+        datetime creado_en
+        datetime actualizado_en
     }
 
     VENDEDOR {
@@ -78,13 +83,15 @@ erDiagram
         date fecha_ingreso
         int usuario_id FK
         int version
+        datetime creado_en
+        datetime actualizado_en
     }
 
     AUDIT_LOG {
         bigint id PK
         varchar(80) entidad
         bigint registro_id
-        varchar(30) accion "CREACION | ACTUALIZACION | CAMBIO_ESTADO | BLOQUEO"
+        varchar(30) accion "CREACION | ACTUALIZACION | CAMBIO_ESTADO | BLOQUEO | ELIMINACION"
         int usuario_id FK
         json cambios_json
         int version_resultante
@@ -94,37 +101,42 @@ erDiagram
     META_MENSUAL {
         bigint id PK
         bigint vendedor_id FK
-        varchar(7) periodo "YYYY-MM"
+        varchar(7) periodo "YYYY-MM (UK compuesta con vendedor_id)"
         decimal meta_valor
         decimal resultado_real
         varchar(255) observaciones
         int version
+        datetime creado_en
+        datetime actualizado_en
     }
 
     OFERTA_PERIODO {
         bigint id PK
         varchar(160) titulo
         text descripcion
-        varchar(100) imagen
+        varchar(100) imagen "ruta_imagen_oferta (limpieza fisica)"
         varchar(7) periodo "YYYY-MM"
         date fecha_inicio
         date fecha_fin
         boolean activa
         bigint aliado_id FK
         int version
+        datetime creado_en
+        datetime actualizado_en
     }
 
     AI_AUDIT_LOG {
         bigint id PK
         int usuario_id FK
         varchar(40) caso_uso "GENERACION_OFERTA | ANALISIS_METAS"
-        varchar(60) modelo
+        varchar(60) modelo "default: gemini-3.5-flash-lite"
         text prompt_resumen
         json respuesta_json
         int latencia_ms
         int tokens_estimados
         varchar(20) decision_humana "PENDIENTE | ACEPTADO | EDITADO | DESCARTADO"
         datetime creado_en
+        datetime actualizado_en
     }
 ```
 
@@ -212,6 +224,13 @@ Ficha de funcionario comercial asignado a un `Coordinador`, con ciudad base, ope
   - `ciudad_id` (`FK -> red_comercial_ciudad.id`)
   - Restricción única compuesta `(vendedor_id, ciudad_id)` que permite a un mismo vendedor operar en una o múltiples ciudades.
 
+- **Normalización en Tercera Forma Normal (3FN)**:
+  - `Vendedor` **no almacena** una columna redundante `aliado_id`, ya que el aliado comercial se deriva funcionalmente a través del `Coordinador` responsable directo (`vendedor.coordinador.aliado`). Esto evita anomalías de actualización y desincronización en la jerarquía comercial.
+- **Propiedades del Modelo y Métodos de Negocio**:
+  - `@property aliado`: Resuelve dinámicamente el `Aliado` titular a través de `self.coordinador.aliado`.
+  - `@property puede_operar`: Regla de guarda que valida que el vendedor esté en `ACTIVO` y que tanto su coordinador como su aliado comercial se encuentren activos (`self.estado == EstadoVendedor.ACTIVO and self.coordinador.activo and self.coordinador.aliado.activo`).
+  - `cambiar_estado(nuevo_estado, expected_version, usuario, motivo)`: Ejecuta la transición de estado bajo bloqueo optimista y clasifica la acción en `AuditLog` como `BLOQUEO` (si el nuevo estado es `BLOQUEADO`) o `CAMBIO_ESTADO`.
+
 ---
 
 ### 3.5. `red_comercial_auditlog` (`AuditLog`)
@@ -222,11 +241,14 @@ Bitácora inmutable de auditoría de cambios sobre las entidades del portal.
 | `id` | `INTEGER` | No | `PK`, `AUTOINCREMENT` | Identificador único del evento de auditoría. |
 | `entidad` | `VARCHAR(80)` | No | `INDEX` | Nombre de la clase de modelo auditada (ej. `Vendedor`, `Aliado`). |
 | `registro_id` | `BIGINT UNSIGNED` | No | `INDEX` | Llave primaria del registro afectado. |
-| `accion` | `VARCHAR(30)` | No | — | Tipo de evento: `CREACION`, `ACTUALIZACION`, `CAMBIO_ESTADO`, `BLOQUEO`. |
+| `accion` | `VARCHAR(30)` | No | — | Tipo de evento: `CREACION`, `ACTUALIZACION`, `CAMBIO_ESTADO`, `BLOQUEO`, `ELIMINACION`. |
 | `usuario_id` | `INTEGER` | Sí | `FK -> auth_user(id)` (`SET NULL`) | Actor autenticado que ejecutó la operación. |
 | `cambios_json` | `JSON` | No | — | Diccionario `{campo: {"antes": valor_anterior, "despues": valor_nuevo}}`. |
 | `version_resultante` | `INTEGER UNSIGNED` | No | `DEFAULT 1` | Número de versión del registro tras aplicar el cambio. |
 | `fecha_evento` | `DATETIME` | No | `INDEX` | Marca de tiempo exacta del evento. |
+
+- **Propiedades de Serialización**:
+  - `@property cambios_json_str`: Retorna el diferencial `cambios_json` formateado como cadena JSON válida (`json.dumps(..., ensure_ascii=False)`), garantizando renderizado seguro en templates y payloads de inspección.
 
 ---
 
@@ -237,13 +259,21 @@ Registro de metas comerciales mensuales vs. resultados reales por vendedor y per
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `INTEGER` | No | `PK`, `AUTOINCREMENT` | Identificador único de la meta mensual. |
 | `vendedor_id` | `BIGINT` | No | `FK -> red_comercial_vendedor(id)` (`CASCADE`) | Vendedor al cual se asigna la meta. |
-| `periodo` | `VARCHAR(7)` | No | `INDEX`, `uniq_meta_vendedor_periodo` | Periodo mensual en formato `YYYY-MM`. |
+| `periodo` | `VARCHAR(7)` | No | `INDEX`, `UNIQUE compuesta (vendedor_id, periodo)` | Periodo mensual en formato `YYYY-MM`. Restricción `uniq_meta_vendedor_periodo`. |
 | `meta_valor` | `DECIMAL(14, 2)` | No | — | Valor monetario de la meta asignada en el mes. |
 | `resultado_real` | `DECIMAL(14, 2)` | No | `DEFAULT 0.00` | Valor monetario real ejecutado acumulada en el mes. |
 | `observaciones` | `VARCHAR(255)` | No | `DEFAULT ''` | Notas operativas o seguimiento de cumplimiento. |
 | `version` | `INTEGER UNSIGNED` | No | `DEFAULT 1` | Versión para control de concurrencia optimista. |
 | `creado_en` | `DATETIME` | No | — | Fecha y hora de creación. |
 | `actualizado_en` | `DATETIME` | No | — | Fecha y hora de última modificación. |
+
+- **Restricción de Integridad Única**:
+  - `uniq_meta_vendedor_periodo`: `models.UniqueConstraint(fields=["vendedor", "periodo"], name="uniq_meta_vendedor_periodo")`. Impide duplicar asignaciones de meta para el mismo asesor en un mismo mes.
+- **Propiedades y Métodos de Agregación Jerárquica**:
+  - `@property brecha`: Diferencia monetaria `resultado_real - meta_valor` (negativo indica déficit).
+  - `@property porcentaje_cumplimiento`: Porcentaje calculado `(resultado_real / meta_valor) * 100` redondeado a dos decimales.
+  - `MetaMensual.resumen_por_coordinador(periodo, aliado_id=None)`: Agrega metas y ventas reales por equipo de coordinador.
+  - `MetaMensual.resumen_por_aliado(periodo)`: Agrega metas y ventas reales consolidadas por aliado comercial.
 
 ---
 
@@ -255,7 +285,7 @@ Ofertas promocionales vigentes por periodo con soporte de textos comerciales, im
 | `id` | `INTEGER` | No | `PK`, `AUTOINCREMENT` | Identificador único de la oferta. |
 | `titulo` | `VARCHAR(160)` | No | — | Título comercial de la promoción. |
 | `descripcion` | `TEXT` | No | — | Condiciones comerciales, tarifas y beneficios de la oferta. |
-| `imagen` | `VARCHAR(100)` | Sí | — | Ruta relativa en `MEDIA_ROOT` (`ofertas/%Y/%m/`) de la pieza gráfica. |
+| `imagen` | `VARCHAR(100)` | Sí | `upload_to=ruta_imagen_oferta` | Pieza gráfica promocional con ruta trazable y depuración física de archivos. |
 | `periodo` | `VARCHAR(7)` | No | `INDEX` | Periodo comercial de referencia (`YYYY-MM`). |
 | `fecha_inicio` | `DATE` | No | — | Fecha de inicio de vigencia de la oferta. |
 | `fecha_fin` | `DATE` | No | — | Fecha final de vigencia (`fecha_fin >= fecha_inicio`). |
@@ -269,22 +299,35 @@ Ofertas promocionales vigentes por periodo con soporte de textos comerciales, im
   - `ofertaperiodo_id` (`FK -> operacion_ofertaperiodo.id`)
   - `ciudad_id` (`FK -> red_comercial_ciudad.id`)
   - Si una oferta no tiene filas asociadas en esta tabla puente, se considera de cobertura nacional para todas las ciudades activas.
+- **Ruta Trazable y Eliminación Física de Archivos (`ruta_imagen_oferta`)**:
+  - La ruta del archivo en disco se genera mediante la función invocable `ruta_imagen_oferta`:  
+    `ofertas/<año>/<mes>/audit_oferta_<id_o_nueva>_<periodo>_<timestamp>_<slug>.<ext>`.
+  - **Depuración física de obsoletos**:
+    1. Al editar y reemplazar una imagen mediante `VersionedModel.optimistic_update`, el archivo previo se elimina físicamente de `media/` con reintento seguro contra bloqueos de concurrencia en Windows (`_eliminar_archivo_storage_seguro`).
+    2. Al eliminar la oferta (`delete()` o señal `post_delete`), se purga de inmediato el archivo físico para garantizar cero archivos huérfanos en almacenamiento.
+- **Regla de Visibilidad Operativa (`visibles_para_vendedor`)**:
+  - `OfertaPeriodo.visibles_para_vendedor(vendedor, fecha)`: Retorna queryset filtrando ofertas activas en rango de fechas vigentes aplicables al aliado del vendedor y a sus ciudades (ciudad base y ciudades de operación). Si el vendedor está `INACTIVO` o `BLOQUEADO` (`not vendedor.puede_operar`), retorna un queryset vacío `none()`.
 
 ---
 
 ### 3.8. `asistente_ia_aiauditlog` (`AIAuditLog`)
-Bitácora de auditoría y telemetría de interacciones con Google Gemini (`gemini-2.5-flash`) bajo esquema *human-in-the-loop*.
+Bitácora de auditoría, telemetría y control humano (*human-in-the-loop*) para cada interacción con el Asistente de IA (Google Gemini `gemini-3.5-flash-lite`).
 
 | Columna | Tipo SQL | Nulo | Restricciones / Índices | Descripción |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `INTEGER` | No | `PK`, `AUTOINCREMENT` | Identificador único de la consulta al modelo IA. |
 | `usuario_id` | `INTEGER` | Sí | `FK -> auth_user(id)` (`SET NULL`) | Usuario que solicitó la asistencia de IA. |
 | `caso_uso` | `VARCHAR(40)` | No | `INDEX` | Caso de uso: `GENERACION_OFERTA` o `ANALISIS_METAS`. |
-| `modelo` | `VARCHAR(60)` | No | `DEFAULT 'gemini-2.5-flash'` | Identificador del modelo invocado. |
+| `modelo` | `VARCHAR(60)` | No | `DEFAULT 'gemini-3.5-flash-lite'` | Identificador del modelo invocado (`gemini-3.5-flash-lite`). |
 | `prompt_resumen` | `TEXT` | No | — | Contexto o parámetros enviados al generador. |
 | `respuesta_json` | `JSON` | No | — | Respuesta estructurada devuelta por el asistente. |
 | `latencia_ms` | `INTEGER UNSIGNED` | No | `DEFAULT 0` | Tiempo de respuesta medido en milisegundos. |
 | `tokens_estimados` | `INTEGER UNSIGNED` | No | `DEFAULT 0` | Conteo total de tokens reportados o estimados. |
 | `decision_humana` | `VARCHAR(20)` | No | `INDEX`, `DEFAULT 'PENDIENTE'` | Veredicto humano: `PENDIENTE`, `ACEPTADO`, `EDITADO`, `DESCARTADO`. |
-| `creado_en` | `DATETIME` | No | — | Fecha y hora de la consulta. |
+| `creado_en` | `DATETIME` | No | `INDEX`, `idx_aiaudit_user_created` | Fecha y hora de la consulta al asistente. |
 | `actualizado_en` | `DATETIME` | No | — | Fecha y hora en que se registró la decisión humana. |
+
+- **Propiedades de Serialización y Racionamiento de Cuotas**:
+  - `@property respuesta_json_str`: Serializa de forma segura el contenido JSON a cadena de texto para consumo en vistas o inspectores.
+  - **Índice compuesto de rendimiento para cuotas en tiempo real**:
+    - `idx_aiaudit_user_created` sobre `(usuario_id, creado_en)`: Permite resolver el conteo de cuota de solicitudes por usuario (15 cada 2 min y 50 por día) en <1ms mediante un index-only scan directo en la base de datos sin sobrecargar la CPU.

@@ -8,16 +8,19 @@
   </button>
 
   <!-- Drawer Lateral / Ventana de Chat Desplegable -->
-  <aside id="verla-ai-drawer" class="verla-ai-drawer" aria-hidden="true" data-consultar-url="{% url 'asistente_api_consultar' %}" data-veredicto-url="{% url 'asistente_api_veredicto' %}">
+  <aside id="verla-ai-drawer" class="verla-ai-drawer" aria-hidden="true" data-consultar-url="{% url 'asistente_api_consultar' %}" data-veredicto-url="{% url 'asistente_api_veredicto' %}" data-estado-url="{% url 'asistente_api_estado' %}">
     <header class="verla-ai-header">
       <div style="display: flex; align-items: center; gap: 0.5rem;">
         <img src="{% static 'img/gemini-logo-white.svg' %}" alt="Gemini" width="20" height="20">
         <div>
           <strong style="font-size: 0.95rem; color: #FFFFFF;">Copiloto VERLA</strong><br>
-          <small style="color: #A09EC7; font-size: 0.75rem;">gemini-2.5-flash &bull; Activo</small>
+          <small style="color: #A09EC7; font-size: 0.75rem;">gemini-3.5-flash-lite &bull; Activo</small>
         </div>
       </div>
-      <div style="display: flex; gap: 0.4rem; align-items: center;">
+      <div style="display: flex; gap: 0.35rem; align-items: center;">
+        <span id="verla-ai-quota-badge" style="font-size: 0.72rem; background: var(--verla-border); padding: 0.2rem 0.5rem; border-radius: 6px; color: var(--verla-text-primary); border: 1px solid rgba(255,255,255,0.15); font-weight: 500;" title="Consultas disponibles hoy (máx 15 cada 2 min)">
+          Disponibles: 50
+        </span>
         <button id="verla-ai-clear-btn" type="button" class="outline secondary" title="Limpiar conversación actual" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin: 0;">
           🗑️
         </button>
@@ -29,11 +32,14 @@
 
     <!-- Atajos Rápidos Contextuales -->
     <div class="verla-ai-chips">
-      <button type="button" class="ai-chip" data-prompt="Redacta un copy comercial persuasivo para una oferta de Fibra Óptica 500MB en Bogotá con 20% de descuento los primeros 3 meses.">
-        🎁 Redactar Oferta Fibra
+      <button type="button" class="ai-chip" data-prompt="¿Cuáles son mis metas del mes y qué porcentaje de cumplimiento llevo?">
+        📊 Mis Metas & Cumplimiento
       </button>
-      <button type="button" class="ai-chip" data-prompt="Analiza las metas del mes actual, identifica vendedores rezagados y sugiéreme un plan de acción comercial.">
-        📈 Analizar Brecha de Metas
+      <button type="button" class="ai-chip" data-prompt="Recomiéndame y redacta una nueva oferta comercial persuasiva de Fibra Óptica 500MB con instalación preferencial.">
+        🎁 Recomendar Oferta Fibra
+      </button>
+      <button type="button" class="ai-chip" data-prompt="¿Qué ofertas vigentes tenemos activas en el periodo para mi cobertura?">
+        ⚡ Ofertas Activas
       </button>
     </div>
 
@@ -46,7 +52,7 @@
     <footer class="verla-ai-footer">
       <form id="verla-ai-form" style="display: flex; gap: 0.5rem; margin: 0; width: 100%;">
         {% csrf_token %}
-        <input type="text" id="verla-ai-input" placeholder="Pregunta algo sobre metas, red u ofertas..." required style="margin: 0; font-size: 0.85rem; flex: 1;">
+        <input type="text" id="verla-ai-input" maxlength="400" placeholder="Pregunta sobre metas, red, cumplimiento u ofertas..." required style="margin: 0; font-size: 0.85rem; flex: 1;">
         <button type="submit" id="verla-ai-send-btn" class="contrast" style="margin: 0; padding: 0.35rem 0.8rem; font-size: 0.85rem;">
           Enviar
         </button>

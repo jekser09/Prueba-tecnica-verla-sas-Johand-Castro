@@ -430,6 +430,40 @@ def vendedor_update_view(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "red_comercial/vendedor_form.html", {"form": form, "titulo": f"Editar Ficha: {vendedor.nombre_completo}", "vendedor": vendedor})
 
 
+@require_POST
+@requerir_roles("ADMIN", "COORDINADOR")
+def vendedor_delete_view(request: HttpRequest, pk: int) -> HttpResponseRedirect:
+    """Elimina la ficha de un vendedor con control estricto de permisos y registro en AuditLog."""
+    vendedor = get_object_or_404(Vendedor, pk=pk)
+    perfil = obtener_perfil_actor(request.user)
+    nombre = vendedor.nombre_completo
+
+    # El coordinador solo puede eliminar vendedores directamente bajo su supervisión
+    if perfil["es_coordinador"] and vendedor.coordinador_id != perfil["objeto"].pk:
+        messages.error(request, "No tiene autorización para eliminar vendedores de otra coordinación.")
+        return redirect(reverse("vendedor_list"))
+
+    with transaction.atomic():
+        AuditLog.objects.create(
+            entidad="Vendedor",
+            registro_id=vendedor.pk,
+            accion=AccionAuditoria.ELIMINACION,
+            usuario=request.user if getattr(request.user, "is_authenticated", False) else None,
+            cambios_json={
+                "documento": vendedor.documento,
+                "nombre_completo": vendedor.nombre_completo,
+                "coordinador_id": vendedor.coordinador_id,
+                "estado": vendedor.estado,
+                "ciudad_base_id": vendedor.ciudad_base_id,
+            },
+            version_resultante=vendedor.version,
+        )
+        vendedor.delete()
+
+    messages.success(request, f"Vendedor '{nombre}' eliminado exitosamente del sistema.")
+    return redirect(reverse("vendedor_list"))
+
+
 # ==============================================================================
 # HISTORIAL DE AUDITORÍA (AUDIT LOG VIEW)
 # ==============================================================================

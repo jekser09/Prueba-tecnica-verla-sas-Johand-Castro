@@ -988,6 +988,99 @@ class RedComercialCRUDAndConcurrencyViewTests(TestCase):
         self.assertTrue(Coordinador.objects.filter(pk=self.coordinador.pk).exists())
         self.assertContains(res_prot, "No se puede eliminar el coordinador")
 
+    def test_admin_delete_vendedor_success_and_audit(self):
+        vendedor = Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-DEL-ADMIN",
+            nombre_completo="Vendedor Para Borrar",
+            correo="del@admin.com",
+            telefono="3001112233",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+        res = self.client.post(reverse("vendedor_delete", args=[vendedor.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Vendedor.objects.filter(pk=vendedor.pk).exists())
+        log = AuditLog.objects.filter(entidad="Vendedor", registro_id=vendedor.pk, accion=AccionAuditoria.ELIMINACION).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.cambios_json["documento"], "CC-DEL-ADMIN")
+        self.assertContains(res, "eliminado exitosamente")
+
+    def test_coordinador_delete_own_vendedor_success(self):
+        coord_user = self.user_model.objects.create_user("coord_user_del", "coord_del@valle.com", "pass123")
+        self.coordinador.usuario = coord_user
+        self.coordinador.save()
+
+        vendedor = Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-DEL-OWN",
+            nombre_completo="Vendedor Propio Coord",
+            correo="own@coord.com",
+            telefono="3001112234",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+
+        self.client.force_login(coord_user)
+        res = self.client.post(reverse("vendedor_delete", args=[vendedor.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Vendedor.objects.filter(pk=vendedor.pk).exists())
+        self.assertTrue(AuditLog.objects.filter(entidad="Vendedor", registro_id=vendedor.pk, accion=AccionAuditoria.ELIMINACION).exists())
+
+    def test_coordinador_delete_other_coordinador_vendedor_forbidden(self):
+        coord_user = self.user_model.objects.create_user("coord_user_del2", "coord_del2@valle.com", "pass123")
+        self.coordinador.usuario = coord_user
+        self.coordinador.save()
+
+        otro_coord = Coordinador.objects.create(
+            aliado=self.aliado,
+            documento="CC-OTRO-COORD",
+            nombre_completo="Otro Coordinador",
+            correo="otro@coord.com",
+            telefono="3150009988",
+        )
+        vendedor_ajeno = Vendedor.objects.create(
+            coordinador=otro_coord,
+            documento="CC-DEL-AJENO",
+            nombre_completo="Vendedor Ajeno",
+            correo="ajeno@del.com",
+            telefono="3009998811",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+
+        self.client.force_login(coord_user)
+        res = self.client.post(reverse("vendedor_delete", args=[vendedor_ajeno.pk]), follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(Vendedor.objects.filter(pk=vendedor_ajeno.pk).exists())
+        self.assertContains(res, "No tiene autorización para eliminar vendedores de otra coordinación.")
+        self.assertFalse(AuditLog.objects.filter(entidad="Vendedor", registro_id=vendedor_ajeno.pk, accion=AccionAuditoria.ELIMINACION).exists())
+
+    def test_unauthorized_user_cannot_delete_vendedor(self):
+        vendedor = Vendedor.objects.create(
+            coordinador=self.coordinador,
+            documento="CC-UNAUTH-DEL",
+            nombre_completo="Vendedor Protegido",
+            correo="unauth@del.com",
+            telefono="3008887766",
+            cargo="Asesor",
+            ciudad_base=self.ciudad_cali,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+        )
+        self.client.logout()
+
+        res_anon = self.client.post(reverse("vendedor_delete", args=[vendedor.pk]))
+        self.assertEqual(res_anon.status_code, 302)
+        self.assertTrue(Vendedor.objects.filter(pk=vendedor.pk).exists())
+
+
 
 
 

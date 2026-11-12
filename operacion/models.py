@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import os
+import time
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q, QuerySet, Sum
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.utils import timezone
+from django.utils.text import slugify
 
 from red_comercial.models import VersionedModel
 
@@ -112,6 +118,49 @@ class MetaMensual(VersionedModel):
         )
 
 
+def ruta_imagen_oferta(instance: Any, filename: str) -> str:
+    """
+    Genera una ruta trazable e identificable para la pieza gráfica de la oferta,
+    vinculando la entidad OfertaPeriodo, el periodo comercial y marca temporal
+    para trazabilidad de auditoría y evitar colisiones en mediafiles.
+    Formato: ofertas/<año>/<mes>/audit_oferta_<id_o_nueva>_<periodo>_<timestamp>_<slug>.<ext>
+    """
+    base, ext = os.path.splitext(filename)
+    slug_nombre = slugify(base)[:30] or "grafica"
+    ts = int(time.time())
+    pk_str = str(instance.pk) if getattr(instance, "pk", None) else "nueva"
+    periodo_limpio = (getattr(instance, "periodo", "") or "general").replace("-", "")
+
+    periodo = getattr(instance, "periodo", "")
+    if periodo and len(periodo) == 7 and "-" in periodo:
+        año, mes = periodo.split("-")
+    else:
+        hoy = timezone.now()
+        año, mes = hoy.strftime("%Y"), hoy.strftime("%m")
+
+    nombre_archivo = f"audit_oferta_{pk_str}_{periodo_limpio}_{ts}_{slug_nombre}{ext.lower()}"
+    return f"ofertas/{año}/{mes}/{nombre_archivo}"
+
+
+def _eliminar_archivo_storage_seguro(storage: Any, path: str | None) -> None:
+    """Elimina de forma segura un archivo del storage sin lanzar excepciones por bloqueo de Windows."""
+    if not path:
+        return
+    try:
+        if storage.exists(path):
+            storage.delete(path)
+    except Exception:
+        import gc, time
+        gc.collect()
+        time.sleep(0.05)
+        try:
+            if storage.exists(path):
+                storage.delete(path)
+        except Exception:
+            pass
+
+
+
 class OfertaPeriodo(VersionedModel):
     """
     Oferta comercial vigente por periodo con texto dinámico, imagen promocional opcional
@@ -122,7 +171,7 @@ class OfertaPeriodo(VersionedModel):
     descripcion = models.TextField("Descripción y condiciones comerciales")
     imagen = models.ImageField(
         "Pieza gráfica promocional",
-        upload_to="ofertas/%Y/%m/",
+        upload_to=ruta_imagen_oferta,
         null=True,
         blank=True,
     )
@@ -197,3 +246,33 @@ class OfertaPeriodo(VersionedModel):
             .filter(Q(ciudades__isnull=True) | Q(ciudades__in=ciudades_ids) | Q(ciudades=None))
             .distinct()
         )
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        img_name = str(self.imagen.name) if self.imagen and self.imagen.name else None
+        img_storage = self.imagen.storage if self.imagen else None
+        if self.imagen and hasattr(self.imagen, "close"):
+            try:
+                self.imagen.close()
+            except Exception:
+                pass
+        res = super().delete(*args, **kwargs)
+        if img_name and img_storage:
+            _eliminar_archivo_storage_seguro(img_storage, img_name)
+        return res
+
+
+@receiver(post_delete, sender=OfertaPeriodo)
+def eliminar_imagen_oferta_en_delete(sender, instance, **kwargs):
+    """
+    Elimina físicamente el archivo gráfico de mediafiles al eliminarse
+    la oferta comercial de la base de datos para no dejar huérfanos.
+    """
+    if instance.imagen and instance.imagen.name:
+        if hasattr(instance.imagen, "close"):
+            try:
+                instance.imagen.close()
+            except Exception:
+                pass
+        _eliminar_archivo_storage_seguro(instance.imagen.storage, instance.imagen.name)
+
+

@@ -59,17 +59,23 @@ Build and verify the operational MVP for **Portal de Aliados Comerciales — VER
   - Implement human-in-the-loop recording (`AIAuditLog` verdict recording: `ACEPTADO`, `EDITADO`, `DESCARTADO`).
   - Implement comprehensive seed command (`python manage.py seed_demo_data`) populating realistic commercial network, monthly goals, and period offers with images.
   - **Verification**: `uv run python manage.py test -v 2` -> `Ran 31 tests in 11.871s — OK`; `uv run python manage.py makemigrations --check --dry-run` -> `No changes detected`.
-- [ ] **T6: Comprehensive Functional & UX/UI Review (End-to-End Quality Audit)** (Route: `delegated` — Writer trigger: functional verification across all grading dimensions, dark theme consistency, SweetAlert2 notifications, optimistic locking 409 modals, RBAC operational guards, seller state blocking, and complete automated test suite)
+- [x] **T6: Comprehensive Functional & UX/UI Review (End-to-End Quality Audit)** (Route: `delegated` — Writer trigger: functional verification across all grading dimensions, dark theme consistency, SweetAlert2 notifications, optimistic locking 409 modals, RBAC operational guards, seller state blocking, and complete automated test suite)
   - Execute end-to-end audit of business logic: verify commercial hierarchy integrity, multi-city operations, required reason on seller state change, and optimistic concurrency version increments.
   - Audit UI/UX responsiveness and dark theme palette consistency (Pico CSS v2, contrast, uniform cards, slim navbar, frosted pill logo, omnipresent Gemini copilot with `sessionStorage` isolation).
-  - Run full test suite with verbose diagnostics and verify zero unapplied migrations or static asset warnings.
-  - Document quality audit findings and fixes in `docs/QUALITY_AUDIT.md`.
+  - Implemented secure deletion of sellers (`Vendedor`) with coordinator supervision validation and `AuditLog` traceability (`AccionAuditoria.ELIMINACION`).
+  - Implemented traceable media naming (`ruta_imagen_oferta`) and automatic physical file purging on update/delete with Windows file-handle protection (`_eliminar_archivo_storage_seguro`).
+  - Unified offer deletion button to 'Cancelar ✕' in red with SweetAlert2 confirmation.
+  - Added HTML5 `<dialog>` detail modal for commercial network `AuditLog` with before/after comparison table and JSON clipboard copy.
+  - Form image upload refinement with client-side reactive preview on create/edit, eliminating technical path strings and Django's clearable checkboxes.
+  - Documented findings in `docs/QUALITY_AUDIT.md` and synchronized `docs/DATA_MODEL.md` (Mermaid ER diagram), `README.md`, and `AGENTS.md`.
+  - **Verification**: `uv run python manage.py test` -> `Ran 67 tests in 63.095s — OK`; `uv run python manage.py makemigrations --check --dry-run` -> `No changes detected`; `collectstatic` -> 136 files post-processed with MD5 hashes.
 
 - [ ] **T7: Deployment Architecture, Free Platform Definition with Automated SSL & Production Deployment** (Route: `delegated` — Writer trigger: platform evaluation, production configuration, Granian ASGI runner, environment checklist, deployment guide, and live verification)
   - Evaluate and select the optimal hosting platform with a reliable free tier and automated TLS/SSL certificate (e.g. Render Web Service / Railway).
   - Prepare production settings checklist (`DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, persistent volume/disk for SQLite WAL and media uploads, static collection via `collectstatic`).
   - Author comprehensive deployment guide in `docs/DEPLOYMENT.md` with step-by-step instructions, run commands, and `.env.template` reference.
   - Validate production build locally (`uv run python manage.py collectstatic --no-input`) and document deployment readiness.
+  - Record and submit the 5 to 8 minute technical defense video demonstrating live operation, architecture, and design decisions.
 
 ## Progress & Verification Evidence
 - **Bootstrap**: Static/HTML minification pipeline (`aliados/storage.py`) and SQLite WAL configuration verified (`Ran 3 tests in 0.032s — OK`, commit `77804a3`).
@@ -77,5 +83,6 @@ Build and verify the operational MVP for **Portal de Aliados Comerciales — VER
 - **T2 Completed**: Base Dark Theme UI (Pico CSS v2 + VERLA dark design tokens), responsive layout (`templates/base.html`, `login.html`, `acceso_bloqueado.html`), RBAC guards (`requerir_roles`, `verificar_vendedor_operativo`), and Demo Role Switcher (`/simular-rol/`) with 20 automated tests passing (`Ran 20 tests in 4.942s — OK`).
 - **T3 Completed**: Commercial Network CRUD (`Ciudad`, `Aliado`, `Coordinador`, `Vendedor`), SweetAlert2 notifications & conflict modal, optimistic concurrency HTTP `409 Conflict` guards, and `AuditLog` history viewer with 24 automated tests passing (`Ran 24 tests in 6.707s — OK`).
 - **T4 Completed**: Operations Dashboard (`MetaMensual` aggregation by period/ally/coordinator, % threshold indicators), `OfertaPeriodo` image uploads & city/ally scoping, dedicated active seller portal view, and concurrency 409 protection with 27 automated tests passing (`Ran 27 tests in 9.565s — OK`).
-- **T5 Completed**: Google Gemini Asynchronous Copilot (`gemini-2.5-flash` via `httpx`), omnipresent floating widget with official white spark icon, `sessionStorage` chat persistence, screen-aware context injection, `AIAuditLog` telemetry & human verdicts, and `seed_demo_data` command with 31 automated tests passing (`Ran 31 tests in 11.871s — OK`).
-- **Next Step**: Execute T6 (Comprehensive Functional & UX/UI Review - End-to-End Quality Audit).
+- **T5 Completed**: Google Gemini Asynchronous Copilot (`gemini-3.5-flash-lite` via `httpx`), omnipresent floating widget with official white spark icon, `sessionStorage` chat persistence, screen-aware context injection, `AIAuditLog` telemetry & human verdicts, and `seed_demo_data` command with 31 automated tests passing (`Ran 31 tests in 11.871s — OK`).
+- **T6 Completed**: Comprehensive E2E Quality Audit, 3FN model normalization, Vendedor deletion with RBAC & AuditLog, media lifecycle with physical purge on update/delete, modal de detalle para auditoría, formulario de ofertas con previsualización limpia y suite completa pasando al 100% con 67 pruebas (`Ran 67 tests in 63.095s — OK`).
+- **Next Step**: Execute T7 (Production Deployment & 5-8 minute Defense Video).

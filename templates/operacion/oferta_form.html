@@ -50,6 +50,9 @@
 
         <label for="{{ form.imagen.id_for_label }}">
           Imagen Promocional (Opcional)
+          <div id="contenedor-previsualizacion-imagen" style="{% if not oferta or not oferta.imagen %}display: none;{% endif %} margin: 0.6rem 0; background: var(--verla-bg-elevated); padding: 0.65rem; border-radius: 6px; border: 1px solid var(--verla-border); text-align: center;">
+            <img id="img-previsualizacion-oferta" src="{% if oferta and oferta.imagen %}{{ oferta.imagen.url }}{% endif %}" alt="Previsualización de la oferta" style="max-height: 140px; max-width: 100%; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+          </div>
           {{ form.imagen }}
           {% if form.imagen.errors %}<small style="color:var(--verla-status-blocked)">{{ form.imagen.errors.0 }}</small>{% endif %}
         </label>
@@ -96,13 +99,27 @@
   </article>
 </div>
 
-{% if concurrency_error %}
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    {% if concurrency_error %}
     if (window.VerlaAlert) {
       VerlaAlert.conflict('{{ concurrency_error|escapejs }}');
     }
+    {% endif %}
+
+    const inputImagen = document.getElementById('id_imagen');
+    const contenedorPreview = document.getElementById('contenedor-previsualizacion-imagen');
+    const imgPreview = document.getElementById('img-previsualizacion-oferta');
+
+    if (inputImagen && contenedorPreview && imgPreview) {
+      inputImagen.addEventListener('change', function(e) {
+        const file = e.target.files && e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+          imgPreview.src = URL.createObjectURL(file);
+          contenedorPreview.style.display = 'block';
+        }
+      });
+    }
   });
 </script>
-{% endif %}
 {% endblock %}
