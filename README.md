@@ -28,17 +28,32 @@ El reto técnico evalúa **criterio de diseño arquitectónico y operación real
 - **Metas vs. Resultados Reales**: Se miden mensualmente (`YYYY-MM`) permitiendo agregación y trazabilidad por **vendedor**, **coordinador** y **aliado**.
 - **Ofertas Vigentes por Período**: Publicación de promociones y condiciones comerciales con contenido textual e imágenes variables según el período de vigencia, visibles para la fuerza de ventas activa.
 
-### 2.2 Entregables Exigidos
-- [ ] **Arquitectura y Modelo de Datos**: Diagrama Entidad-Relación (DER) y diccionario de datos detallado.
-- [ ] **MVP Funcional en Vivo**: Operaciones CRUD completas con historial de cambios auditable.
-- [ ] **Seguridad, Roles y Concurrencia**: Matriz de permisos por rol y prevención de pérdida de actualizaciones (*lost updates*) en edición simultánea.
-- [ ] **Módulo de IA con Control**: Documentación e implementación de dónde aporta valor, con qué guardrails opera y cómo se mide su efectividad.
-- [ ] **Estrategia de Pruebas**: Pruebas automatizadas de reglas críticas de negocio, permisos y colisiones de concurrencia.
-- [ ] **Despliegue y Cronograma**: URL pública funcional, plan de trabajo con hitos/fechas y video de sustentación (5–8 min).
+### 2.2 Entregables Exigidos y Documentación Oficial
+
+Todos los requerimientos y frentes evaluados cuentan con documentación exhaustiva y entregables formales disponibles en el directorio **[`docs/`](docs/)**:
+
+- [x] **Arquitectura y Modelo de Datos**: Diagrama Entidad-Relación (DER) en Mermaid, normalización en 3FN y diccionario exhaustivo de datos por tabla en **[`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)**.
+- [x] **MVP Funcional en Vivo**: Operaciones CRUD completas para la red comercial (`Ciudad`, `Aliado`, `Coordinador`, `Vendedor`), multiciudad, trazabilidad en `AuditLog` y despliegue público en **[Fly.io](https://verla-aliados-portal.fly.dev/)**.
+- [x] **Seguridad, Roles y Concurrencia**: Matriz de permisos por rol (RBAC), control de estados (`ACTIVO`, `INACTIVO`, `BLOQUEADO`) y bloqueo optimista por versión (`version` + HTTP `409 Conflict`) documentados en **[`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md)**.
+- [x] **Módulo de IA con Control**: Copiloto asíncrono (**Google Gemini `gemini-3.5-flash-lite`**) con Function Calling, cuotas de tokens (15/2min y 50/día), aislamiento de contexto por rol y telemetría en `AIAuditLog`.
+- [x] **Estrategia de Pruebas**: Suite de 67 pruebas automatizadas (`uv run python manage.py test`) cubriendo reglas de negocio críticas, concurrencia y permisos en **[`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md)**.
+- [x] **Despliegue y Cronograma**: Evaluación de plataformas en la nube, configuración de volúmenes persistentes NVMe para SQLite WAL y guía para el video de sustentación (5–8 min) en **[`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md)**.
 
 ---
 
-## 3. Stack Tecnológico Definido
+## 3. Índice de Documentación Técnica (`docs/`)
+
+Para una revisión en profundidad de los aspectos de ingeniería y auditoría, consulte los siguientes documentos técnicos incluidos en el repositorio:
+
+| Documento | Alcance y Contenido Técnico |
+| :--- | :--- |
+| **[`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)** | **Modelo Relacional & Diccionario de Datos**: Diagrama Entidad-Relación (Mermaid ER), normalización en Tercera Forma Normal (3FN), reglas de negocio por entidad, restricciones compuestas de integridad (`uniq_meta_vendedor_periodo`), control de concurrencia optimista (`version`) y esquema de tablas para SQLite WAL. |
+| **[`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md)** | **Arquitectura de Despliegue en la Nube**: Matriz comparativa de plataformas PaaS (Fly.io vs. Railway vs. Render), análisis técnico de almacenamiento NVMe de bloques para SQLite WAL, configuración del servidor ASGI en Rust (**Granian**) y guion estructurado para el video de sustentación técnica (5–8 minutos). |
+| **[`docs/QUALITY_AUDIT.md`](docs/QUALITY_AUDIT.md)** | **Auditoría de Calidad E2E & Suite de Pruebas**: Matriz de verificación funcional de los 6 frentes del MVP, auditoría de permisos y redirección contextual (RBAC), depuración física en ciclo de vida de multimedia, pruebas de concurrencia (HTTP 409) y certificación de **67/67 pruebas automatizadas pasando**. |
+
+---
+
+## 4. Stack Tecnológico Definido
 
 El stack fue seleccionado priorizando **robustez transaccional, velocidad de entrega (sprint de 17 horas) y rendimiento en producción**:
 
@@ -55,7 +70,7 @@ El stack fue seleccionado priorizando **robustez transaccional, velocidad de ent
 
 ---
 
-## 4. Estrategia de Ejecución y Plan de Abordaje (Sprint 17 Horas)
+## 5. Estrategia de Ejecución y Plan de Abordaje (Sprint 17 Horas)
 
 El desarrollo se estructura en **6 fases incrementales**. La integración de IA se ubica estratégicamente después de construir el núcleo transaccional (CRUD, metas y ofertas) para que el modelo opere sobre **datos reales del dominio**.
 
@@ -81,7 +96,7 @@ flowchart LR
 
 ---
 
-## 5. Diseño de Gobernanza para Concurrencia e IA
+## 6. Diseño de Gobernanza para Concurrencia e IA
 
 ### 5.1 Control de Bloqueo y Edición Concurrente
 - **Bloqueo Optimista (*Optimistic Concurrency Control*)**: Cada entidad editable (`Aliado`, `Coordinador`, `Vendedor`, `MetaMensual`, `OfertaPeriodo`) incluye un campo entero `version`. Toda actualización valida `WHERE id = :id AND version = :current_version` incrementando `version = version + 1` de forma atómica. Si otro usuario modificó el registro previamente, el sistema rechaza la escritura con estado `409 Conflict`, preserva los cambios en pantalla y exige recargar o confirmar antes de sobrescribir.
@@ -101,11 +116,11 @@ flowchart LR
 
 ---
 
-## 6. Guía de Instalación y Puesta en Marcha
+## 7. Guía de Instalación y Puesta en Marcha
 
 El proyecto utiliza **`uv`** (desarrollado por Astral en Rust) como gestor unificado de paquetes, entornos virtuales y dependencias para garantizar una instalación ultrarrápida, aislada y determinista.
 
-### 6.1. Requisitos Previos
+### 7.1. Requisitos Previos
 
 1. **Python >= 3.14** (o Python 3.12+ soportado en `pyproject.toml`).
 2. **`uv` instalado en el sistema**:
@@ -118,7 +133,7 @@ El proyecto utiliza **`uv`** (desarrollado por Astral en Rust) como gestor unifi
      curl -LsSf https://astral.sh/uv/install.sh | sh
      ```
 
-### 6.2. Clonación y Configuración del Entorno
+### 7.2. Clonación y Configuración del Entorno
 
 1. **Clonar el repositorio y entrar a la carpeta**:
    ```bash
@@ -151,7 +166,7 @@ El proyecto utiliza **`uv`** (desarrollado por Astral en Rust) como gestor unifi
    > [!NOTE]
    > La variable `GEMINI_API_KEY` es opcional para desarrollo local. En caso de ausencia, expiración o límite de tasa (HTTP 429), el asistente de IA conmuta automáticamente a un modo de contingencia (*fallback*) determinístico y estructurado sin interrumpir la experiencia de usuario.
 
-### 6.3. Base de Datos y Activos Estáticos
+### 7.3. Base de Datos y Activos Estáticos
 
 1. **Aplicar las migraciones de base de datos (SQLite en modo WAL)**:
    ```bash
@@ -168,7 +183,7 @@ El proyecto utiliza **`uv`** (desarrollado por Astral en Rust) como gestor unifi
    uv run python manage.py createsuperuser
    ```
 
-### 6.4. Ejecución del Servidor
+### 7.4. Ejecución del Servidor
 
 El proyecto soporta dos modos de ejecución:
 
@@ -188,7 +203,7 @@ Una vez iniciado, acceda desde su navegador a:
 
 ---
 
-## 7. Ejecución de la Suite de Pruebas Automatizadas
+## 8. Ejecución de la Suite de Pruebas Automatizadas
 
 El proyecto cuenta con una cobertura integral de pruebas unitarias y de integración que validan la jerarquía comercial, el control de concurrencia optimista (HTTP 409), el ciclo de vida multimedia con eliminación física de archivos y la telemetría del copiloto IA:
 
@@ -203,11 +218,11 @@ Ran 67 tests in ~65s — OK (0 fallos, 0 errores)
 
 ---
 
-## 8. Despliegue en Producción en la Nube (Fly.io)
+## 9. Despliegue en Producción en la Nube (Fly.io)
 
 El proyecto está configurado para despliegue automatizado sobre microVMs en **[Fly.io](https://fly.io/)** con persistencia en bloque NVMe (**Fly Volumes**) para la base de datos SQLite 3 en modo WAL y los archivos multimedia, garantizando cero pérdida de datos entre reinicios y certificado HTTPS/SSL automático:
 
-### 8.1. Arquitectura de Despliegue
+### 9.1. Arquitectura de Despliegue
 
 ```mermaid
 flowchart TD
@@ -222,10 +237,10 @@ flowchart TD
     Container -->|Lecturas WAL / Escrituras Atómicas| Volume[("Volumen NVMe /data\n- db.sqlite3 (WAL)\n- /data/media")]
 ```
 
-### 8.2. Pasos para Desplegar en Fly.io
+### 9.2. Pasos para Desplegar en Fly.io
 
 1. **Instalar el CLI de Fly (`flyctl`)**:
-   - *Windows (PowerShell)*: `powershell -Command "iwr -useb https://fly.io/install.ps1 | iex"`
+   - *Windows (PowerShell)*: `powershell -ExecutionPolicy ByPass -c "irm https://fly.io/install.ps1 | iex"`
    - *Linux/macOS*: `curl -L https://fly.io/install.sh | sh`
 
 2. **Iniciar sesión en Fly.io**:
@@ -238,9 +253,9 @@ flowchart TD
    fly apps create verla-aliados-portal --machines
    ```
 
-4. **Crear el volumen de almacenamiento persistente NVMe (1GB en Bogotá o Miami)**:
+4. **Crear el volumen de almacenamiento persistente NVMe (1GB en Dallas `dfw` o São Paulo `gru`)**:
    ```bash
-   fly volumes create verla_data --region bog --size 1
+   fly volumes create verla_data --region dfw --size 1
    ```
 
 5. **Configurar los secretos de producción**:
