@@ -1,0 +1,241 @@
+/*
+ * Dark Theme Palette & Design System Tokens for VERLA SAS Portal
+ * Tokens derived from Logo verla horizontal.png and AGENTS.md Section 3
+ */
+
+:root {
+  /* Brand Tokens */
+  --verla-brand-indigo: #3B33BC;
+  --verla-brand-indigo-hover: #524AE0;
+  --verla-brand-navy: #070081;
+  --verla-brand-white: #FFFFFF;
+
+  /* Surfaces & Canvas */
+  --verla-bg-canvas: #08071A;
+  --verla-bg-surface: #11102E;
+  --verla-bg-elevated: #1A1842;
+  --verla-border: #2A2768;
+
+  /* Typography Colors */
+  --verla-text-primary: #F4F4FB;
+  --verla-text-muted: #A09EC7;
+
+  /* Operational Status Tokens */
+  --verla-status-active: #10B981;
+  --verla-status-inactive: #F59E0B;
+  --verla-status-blocked: #EF4444;
+
+  /* Map Pico CSS (v2) tokens to VERLA Dark Palette */
+  --pico-font-family-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --pico-background-color: var(--verla-bg-canvas);
+  --pico-card-background-color: var(--verla-bg-surface);
+  --pico-card-border-color: var(--verla-border);
+  --pico-color: var(--verla-text-primary);
+  --pico-muted-color: var(--verla-text-muted);
+  --pico-border-color: var(--verla-border);
+  --pico-primary: var(--verla-brand-indigo);
+  --pico-primary-background: var(--verla-brand-indigo);
+  --pico-primary-hover: var(--verla-brand-indigo-hover);
+  --pico-primary-hover-background: var(--verla-brand-indigo-hover);
+  --pico-primary-focus: rgba(59, 51, 188, 0.35);
+  --pico-primary-inverse: var(--verla-brand-white);
+  --pico-form-element-background-color: var(--verla-bg-elevated);
+  --pico-form-element-border-color: var(--verla-border);
+  --pico-form-element-color: var(--verla-text-primary);
+  --pico-table-border-color: var(--verla-border);
+  --pico-table-row-stripped-background-color: rgba(26, 24, 66, 0.45);
+}
+
+body {
+  background-color: var(--verla-bg-canvas);
+  color: var(--verla-text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main.container {
+  flex: 1 0 auto;
+  padding-top: 1.5rem;
+  padding-bottom: 2.5rem;
+}
+
+/* Grid Cards & Uniform Article Layout (Flex Sticky Footers) */
+.grid article {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin-bottom: 0;
+}
+
+.grid article > p,
+.grid article > div {
+  flex: 1 1 auto;
+}
+
+.grid article > footer {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.grid article > footer a[role="button"],
+.grid article > footer button {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+/* Header & Brand Container (Ultra-slim, refined dark glass) */
+header.verla-navbar {
+  background-color: rgba(17, 16, 46, 0.90);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--verla-border);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  padding: 0.25rem 0;
+}
+
+header.verla-navbar nav {
+  margin-bottom: 0;
+  min-height: 2.75rem;
+}
+
+header.verla-navbar nav ul {
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+header.verla-navbar nav ul li {
+  padding: 0 0.4rem;
+}
+
+header.verla-navbar nav ul li a {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  color: var(--verla-text-primary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+header.verla-navbar nav ul li a:hover {
+  color: var(--verla-brand-indigo-hover);
+}
+
+/* Brand Badge: Cápsula blanca limpia con resplandor índigo */
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #FFFFFF;
+  border-radius: 9999px;
+  padding: 0.25rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(59, 51, 188, 0.28), 0 0 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.brand-badge:hover {
+  background-color: #FFFFFF;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(59, 51, 188, 0.45);
+}
+
+.brand-badge img {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+
+/* Status Badges */
+.badge-status {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-status.activo {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--verla-status-active);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.badge-status.inactivo {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: var(--verla-status-inactive);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.badge-status.bloqueado {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--verla-status-blocked);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+/* Demo Role Switcher Toolbar (Compact & Slim) */
+.role-switcher-bar {
+  background-color: var(--verla-bg-elevated);
+  border-bottom: 1px solid var(--verla-border);
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+}
+
+.role-switcher-bar .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.role-switcher-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.role-switcher-form select {
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  height: auto;
+  min-height: 1.6rem;
+  width: auto;
+  border-radius: 6px;
+}
+
+.role-switcher-form button {
+  margin: 0;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  height: auto;
+  min-height: 1.6rem;
+  border-radius: 6px;
+}
+
+/* Conflict & Notice Alerts */
+.verla-alert {
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  border: 1px solid transparent;
+}
+
+.verla-alert.alert-blocked,
+.verla-alert.alert-conflict {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #FCA5A5;
+}
+
+.verla-alert.alert-info {
+  background-color: rgba(59, 51, 188, 0.15);
+  border-color: rgba(59, 51, 188, 0.4);
+  color: #C7D2FE;
+}

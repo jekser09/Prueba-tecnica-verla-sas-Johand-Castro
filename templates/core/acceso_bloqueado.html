@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo|default:"Acceso Restringido" }} | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 3rem auto;">
+  <article style="border: 1px solid var(--verla-status-blocked);">
+    <header style="text-align: center;">
+      <h2 style="color: var(--verla-status-blocked);">🚫 {{ titulo }}</h2>
+      <span class="badge-status {{ estado|lower }}">{{ estado }}</span>
+    </header>
+
+    <div style="padding: 1rem 0;">
+      <p style="font-size: 1.1rem; line-height: 1.6;">
+        {{ mensaje }}
+      </p>
+      <div class="verla-alert alert-blocked">
+        <strong>Aviso de Gobernanza Comercial:</strong> De acuerdo con las políticas operacionales de VERLA SAS, los asesores en estado <em>{{ estado }}</em> tienen deshabilitada la consulta de metas, creación de registros comerciales y acceso a ofertas activas.
+      </div>
+    </div>
+
+    <footer style="display: flex; justify-content: space-between; align-items: center;">
+      <small style="color: var(--verla-text-muted);">Si considera que se trata de un error, comuníquese con su Coordinador.</small>
+      <form action="{% url 'logout' %}" method="post" style="margin: 0;">
+        {% csrf_token %}
+        <button type="submit" class="secondary outline" style="margin: 0; padding: 0.35rem 0.8rem;">Cerrar sesión</button>
+      </form>
+    </footer>
+  </article>
+</div>
+{% endblock %}

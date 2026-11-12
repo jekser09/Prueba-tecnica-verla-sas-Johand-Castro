@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="margin-bottom: 2rem;">
+    <h1>Bienvenido al Portal de Aliados Comerciales</h1>
+    <p style="color: var(--verla-text-muted);">
+      Plataforma operacional de gobernanza de la red comercial, metas de ventas mensuales y ofertas comerciales de VERLA SAS.
+    </p>
+  </div>
+
+  <div class="grid">
+    <article>
+      <header>
+        <strong>🏢 Red Comercial</strong>
+      </header>
+      <p>Gestione el catálogo de ciudades, aliados comerciales, coordinadores y fichas de vendedores con control de estados operativos.</p>
+      <footer>
+        <a href="{% url 'com_default' %}" role="button" class="contrast">Explorar Red</a>
+      </footer>
+    </article>
+
+    <article>
+      <header>
+        <strong>📈 Metas & Ofertas</strong>
+      </header>
+      <p>Consulte el cumplimiento de metas mensuales por vendedor, coordinador y aliado, y visualice las ofertas activas del periodo.</p>
+      <footer>
+        <a href="{% url 'op_default' %}" role="button" class="contrast">Ver Operación</a>
+      </footer>
+    </article>
+
+    <article>
+      <header>
+        <strong>🤖 Asistente IA</strong>
+      </header>
+      <p>Copiloto comercial con Google Gemini para redacción de ofertas y análisis de brechas de cumplimiento con control humano estricto.</p>
+      <footer>
+        <a href="{% url 'asis_default' %}" role="button" class="contrast">Abrir Asistente</a>
+      </footer>
+    </article>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Coordinadores | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ul>
+          <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+          <li>Coordinadores</li>
+        </ul>
+      </nav>
+      <h2>Coordinadores de Red</h2>
+    </div>
+    {% if actor.es_admin or actor.es_aliado %}
+      <a href="{% url 'coordinador_create' %}" role="button" class="contrast">+ Nuevo Coordinador</a>
+    {% endif %}
+  </div>
+
+  <article>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Documento</th>
+          <th>Nombre Completo</th>
+          <th>Aliado Titular</th>
+          <th>Contacto</th>
+          <th>Estado</th>
+          <th>Versión</th>
+          {% if actor.es_admin or actor.es_aliado %}<th>Acciones</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in coordinadores %}
+          <tr>
+            <td><code>{{ c.documento }}</code></td>
+            <td><strong>{{ c.nombre_completo }}</strong></td>
+            <td>{{ c.aliado.razon_social }}</td>
+            <td>
+              <small>{{ c.correo }}<br>{{ c.telefono }}</small>
+            </td>
+            <td>
+              {% if c.activo %}
+                <span class="badge-status activo">Activo</span>
+              {% else %}
+                <span class="badge-status inactivo">Inactivo</span>
+              {% endif %}
+            </td>
+            <td><small>v{{ c.version }}</small></td>
+            {% if actor.es_admin or actor.es_aliado %}
+              <td>
+                <a href="{% url 'coordinador_update' c.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--verla-text-muted);">No hay coordinadores registrados.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

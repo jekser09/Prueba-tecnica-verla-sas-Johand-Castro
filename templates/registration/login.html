@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 480px; margin: 3rem auto;">
+  <article>
+    <header style="text-align: center;">
+      <h2>Iniciar Sesión</h2>
+      <p style="color: var(--verla-text-muted);">Acceda con sus credenciales al Portal de Aliados VERLA SAS</p>
+    </header>
+
+    {% if form.errors %}
+      <div class="verla-alert alert-conflict">
+        Usuario o contraseña incorrectos. Por favor intente nuevamente.
+      </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next|default:'/' }}">
+
+      <label for="id_username">
+        Usuario
+        <input type="text" name="username" id="id_username" required autofocus placeholder="Nombre de usuario">
+      </label>
+
+      <label for="id_password">
+        Contraseña
+        <input type="password" name="password" id="id_password" required placeholder="Contraseña">
+      </label>
+
+      <button type="submit" class="contrast" style="width: 100%; margin-top: 1rem;">Ingresar al Portal</button>
+    </form>
+    
+    <footer style="text-align: center;">
+      <small style="color: var(--verla-text-muted);">Para pruebas técnicas rápidas, utilice la barra superior de <strong>Simulador de Roles</strong>.</small>
+    </footer>
+  </article>
+</div>
+{% endblock %}

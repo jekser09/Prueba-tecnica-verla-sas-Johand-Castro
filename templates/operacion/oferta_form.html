@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }} | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 700px; margin: 1.5rem auto;">
+  <nav aria-label="breadcrumb">
+    <ul>
+      <li><a href="{% url 'portal_home' %}">Inicio</a></li>
+      <li><a href="{% url 'op_default' %}">Operación</a></li>
+      <li>{{ titulo }}</li>
+    </ul>
+  </nav>
+
+  <article>
+    <header>
+      <h3>{{ titulo }}</h3>
+    </header>
+
+    {% if concurrency_error %}
+      <div class="verla-alert alert-conflict">
+        <strong>⚠️ Conflicto de Concurrencia Optimista (HTTP 409):</strong>
+        <p>{{ concurrency_error }}</p>
+        <button type="button" class="contrast" onclick="window.location.reload();">Recargar últimos datos</button>
+      </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form.version }}
+
+      <label for="{{ form.titulo.id_for_label }}">
+        Título de la Oferta *
+        {{ form.titulo }}
+        {% if form.titulo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.titulo.errors.0 }}</small>{% endif %}
+      </label>
+
+      <label for="{{ form.descripcion.id_for_label }}">
+        Descripción y Condiciones Comerciales *
+        {{ form.descripcion }}
+        {% if form.descripcion.errors %}<small style="color:var(--verla-status-blocked)">{{ form.descripcion.errors.0 }}</small>{% endif %}
+      </label>
+
+      <div class="grid">
+        <label for="{{ form.periodo.id_for_label }}">
+          Periodo (YYYY-MM) *
+          {{ form.periodo }}
+          {% if form.periodo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.periodo.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.imagen.id_for_label }}">
+          Imagen Promocional (Opcional)
+          {{ form.imagen }}
+          {% if form.imagen.errors %}<small style="color:var(--verla-status-blocked)">{{ form.imagen.errors.0 }}</small>{% endif %}
+        </label>
+      </div>
+
+      <div class="grid">
+        <label for="{{ form.fecha_inicio.id_for_label }}">
+          Fecha Inicio Vigencia *
+          {{ form.fecha_inicio }}
+          {% if form.fecha_inicio.errors %}<small style="color:var(--verla-status-blocked)">{{ form.fecha_inicio.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.fecha_fin.id_for_label }}">
+          Fecha Fin Vigencia *
+          {{ form.fecha_fin }}
+          {% if form.fecha_fin.errors %}<small style="color:var(--verla-status-blocked)">{{ form.fecha_fin.errors.0 }}</small>{% endif %}
+        </label>
+      </div>
+
+      <div class="grid">
+        <label for="{{ form.aliado.id_for_label }}">
+          Aliado Específico (Vacio = Aplica a toda la red)
+          {{ form.aliado }}
+          {% if form.aliado.errors %}<small style="color:var(--verla-status-blocked)">{{ form.aliado.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.ciudades.id_for_label }}">
+          Ciudades Objetivo (Vacio = Todas las ciudades)
+          {{ form.ciudades }}
+          {% if form.ciudades.errors %}<small style="color:var(--verla-status-blocked)">{{ form.ciudades.errors.0 }}</small>{% endif %}
+        </label>
+      </div>
+
+      <label for="{{ form.activa.id_for_label }}">
+        <input type="checkbox" name="{{ form.activa.name }}" id="{{ form.activa.id_for_label }}" {% if form.activa.value %}checked{% endif %}>
+        Oferta activa y visible para vendedores
+      </label>
+
+      <footer style="display:flex; justify-content:space-between; margin-top:1.5rem;">
+        <a href="{% url 'op_default' %}" role="button" class="secondary outline">Cancelar</a>
+        <button type="submit" class="contrast">Guardar Oferta</button>
+      </footer>
+    </form>
+  </article>
+</div>
+
+{% if concurrency_error %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.VerlaAlert) {
+      VerlaAlert.conflict('{{ concurrency_error|escapejs }}');
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

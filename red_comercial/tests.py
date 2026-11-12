@@ -143,16 +143,16 @@ class ModuleRoutingSmokeTests(TestCase):
     """
 
     def test_module_default_endpoints_respond_ok(self):
-        endpoints = [
-            ("com_default", "modulo red 'comercial' conectado"),
-            ("op_default", "modulo 'operacion' conectado"),
-            ("asis_default", "modulo 'asistente ia' conectado"),
-        ]
-        for route_name, expected_message in endpoints:
-            with self.subTest(route=route_name):
-                response = self.client.get(reverse(route_name))
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.json(), {"response": expected_message})
+        # Para com_default y op_default, un usuario anónimo es redirigido a login según RBAC
+        for protected_route in ("com_default", "op_default"):
+            res = self.client.get(reverse(protected_route))
+            self.assertEqual(res.status_code, 302)
+            self.assertIn(reverse("login"), res.headers["Location"])
+
+        # El módulo asistente_ia aún expone su endpoint de salud inicial sin login
+        response = self.client.get(reverse("asis_default"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"response": "modulo 'asistente ia' conectado"})
 
 
 class RedComercialDomainModelTests(TestCase):
@@ -347,7 +347,7 @@ class RateLimitMiddlewareTests(TestCase):
         RATE_LIMIT_AI_REQUESTS=2,
     )
     def test_solicitudes_dentro_del_limite_incluyen_cabeceras_ratelimit(self):
-        url = reverse("com_default")
+        url = reverse("portal_home")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["X-RateLimit-Limit"], "5")
@@ -360,7 +360,7 @@ class RateLimitMiddlewareTests(TestCase):
         RATE_LIMIT_AI_REQUESTS=2,
     )
     def test_exceder_limite_global_retorna_429_con_retry_after_y_mensaje_espanol(self):
-        url = reverse("com_default")
+        url = reverse("portal_home")
         for _ in range(3):
             ok_response = self.client.get(url)
             self.assertEqual(ok_response.status_code, 200)
@@ -410,7 +410,7 @@ class RateLimitMiddlewareTests(TestCase):
         )
 
         # Mientras tanto, las rutas generales siguen disponibles bajo su propio presupuesto
-        general_response = self.client.get(reverse("com_default"))
+        general_response = self.client.get(reverse("portal_home"))
         self.assertEqual(general_response.status_code, 200)
 
     @override_settings(
@@ -452,6 +452,305 @@ class RateLimitMiddlewareTests(TestCase):
         res2 = await middleware(req2)
         self.assertEqual(res2.status_code, 429)
         self.assertEqual(res2["X-RateLimit-Remaining"], "0")
+
+
+class BaseThemeAndRBACTests(TestCase):
+    """
+    Pruebas de integración y unitarias para el diseño Dark Theme de VERLA SAS,
+    las directivas de templates, simulador de roles y guardas RBAC / bloqueo operativo.
+    """
+
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.ciudad = Ciudad.objects.create(
+            codigo="MED",
+            nombre="Medellín",
+            departamento="Antioquia",
+            activa=True,
+        )
+        self.aliado = Aliado.objects.create(
+            nit="900999888-1",
+            razon_social="Aliado Paisa SAS",
+            codigo_contrato="CTR-PAISA-2026",
+            correo_contacto="info@paisa.com",
+            telefono="3001234567",
+            activo=True,
+        )
+        self.coordinador = Coordinador.objects.create(
+            aliado=self.aliado,
+            documento="CC-COORD-MED",
+            nombre_completo="Andrés Morales",
+            correo="andres@paisa.com",
+            telefono="3011112222",
+            activo=True,
+        )
+
+    def test_home_page_renders_dark_theme_and_brand_assets(self):
+        response = self.client.get(reverse("portal_home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-theme=dark')
+        self.assertContains(response, 'verla.css')
+        self.assertContains(response, 'logo-verla.png')
+        self.assertContains(response, 'Simulador de Roles (Demo)')
+
+    def test_login_page_renders_styled_form(self):
+        response = self.client.get(reverse("login"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Iniciar Sesión')
+        self.assertContains(response, 'name=username')
+        self.assertContains(response, 'name=password')
+
+    def test_simulador_roles_switches_session(self):
+        # Simular cambio a Aliado
+        res_aliado = self.client.post(
+            reverse("simular_rol"),
+            {"rol_simulado": "aliado", "next": reverse("portal_home")},
+            follow=True,
+        )
+        self.assertEqual(res_aliado.status_code, 200)
+        self.assertContains(res_aliado, "demo_aliado")
+        self.assertContains(res_aliado, "ALIADO")
+
+        # Simular cambio a Vendedor Activo
+        res_vend_act = self.client.post(
+            reverse("simular_rol"),
+            {"rol_simulado": "vendedor_activo", "next": reverse("portal_home")},
+            follow=True,
+        )
+        self.assertEqual(res_vend_act.status_code, 200)
+        self.assertContains(res_vend_act, "VENDEDOR")
+        self.assertContains(res_vend_act, "ACTIVO")
+
+        # Simular cambio a Vendedor Bloqueado
+        res_vend_bloq = self.client.post(
+            reverse("simular_rol"),
+            {"rol_simulado": "vendedor_bloqueado", "next": reverse("portal_home")},
+            follow=True,
+        )
+        self.assertEqual(res_vend_bloq.status_code, 200)
+        self.assertContains(res_vend_bloq, "BLOQUEADO")
+
+    def test_guard_bloqueo_operativo_restricts_vendedor_bloqueado(self):
+        from red_comercial.rbac import requerir_roles
+
+        @requerir_roles("VENDEDOR", "ADMIN")
+        def dummy_protected_view(request: HttpRequest) -> HttpResponse:
+            return HttpResponse("OPERACION_PERMITIDA", status=200)
+
+        # Usuario vendedor activo
+        user_activo = self.user_model.objects.create_user("vend_ok", "ok@test.com", "pass123")
+        vendedor_ok = Vendedor.objects.create(
+            aliado=self.aliado,
+            coordinador=self.coordinador,
+            documento="CC-VEND-OK",
+            nombre_completo="Vendedor Operativo",
+            correo="ok@test.com",
+            telefono="3000000000",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+            usuario=user_activo,
+        )
+
+        req_ok = HttpRequest()
+        req_ok.user = user_activo
+        req_ok.path = "/operacion/mis-metas/"
+        resp_ok = dummy_protected_view(req_ok)
+        self.assertEqual(resp_ok.status_code, 200)
+        self.assertEqual(resp_ok.content.decode(), "OPERACION_PERMITIDA")
+
+        # Usuario vendedor bloqueado
+        user_bloq = self.user_model.objects.create_user("vend_bloq", "bloq@test.com", "pass123")
+        vendedor_bloq = Vendedor.objects.create(
+            aliado=self.aliado,
+            coordinador=self.coordinador,
+            documento="CC-VEND-BLOQ",
+            nombre_completo="Vendedor Sancionado",
+            correo="bloq@test.com",
+            telefono="3000000001",
+            cargo="Asesor",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.BLOQUEADO,
+            motivo_estado="Sanción disciplinaria vigente",
+            fecha_ingreso=date(2026, 1, 1),
+            usuario=user_bloq,
+        )
+
+        req_bloq = HttpRequest()
+        req_bloq.user = user_bloq
+        req_bloq.path = "/operacion/mis-metas/"
+        resp_bloq = dummy_protected_view(req_bloq)
+        self.assertEqual(resp_bloq.status_code, 403)
+        self.assertIn("Acceso Comercial Bloqueado", resp_bloq.content.decode())
+        self.assertIn("Sanción disciplinaria vigente", resp_bloq.content.decode())
+
+
+class RedComercialCRUDAndConcurrencyViewTests(TestCase):
+    """
+    Pruebas de vistas CRUD, control de concurrencia optimista HTTP 409
+    y auditoría para la Red Comercial.
+    """
+
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.admin_user = self.user_model.objects.create_superuser("admin_crud", "admin@crud.com", "pass123")
+        self.client.force_login(self.admin_user)
+
+        self.ciudad_cali = Ciudad.objects.create(
+            codigo="CLO",
+            nombre="Cali",
+            departamento="Valle del Cauca",
+            activa=True,
+        )
+        self.ciudad_bogota = Ciudad.objects.create(
+            codigo="BOG",
+            nombre="Bogotá",
+            departamento="Cundinamarca",
+            activa=True,
+        )
+        self.aliado = Aliado.objects.create(
+            nit="901000111-2",
+            razon_social="Aliado del Valle SAS",
+            codigo_contrato="CTR-VALLE-2026",
+            correo_contacto="valle@aliado.com",
+            telefono="3120001122",
+            activo=True,
+        )
+        self.coordinador = Coordinador.objects.create(
+            aliado=self.aliado,
+            documento="CC-COORD-VALLE",
+            nombre_completo="Elena Restrepo",
+            correo="elena@valle.com",
+            telefono="3159998877",
+            activo=True,
+        )
+
+    def test_dashboard_red_comercial_renders_metrics(self):
+        response = self.client.get(reverse("com_default"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Gobernanza de Red Comercial")
+        self.assertContains(response, "Ciudades Activas")
+        self.assertContains(response, "Aliados Comerciales")
+
+    def test_ciudad_crud_and_optimistic_conflict_409(self):
+        # 1. Crear ciudad
+        res_create = self.client.post(
+            reverse("ciudad_create"),
+            {
+                "codigo": "BAQ",
+                "nombre": "Barranquilla",
+                "departamento": "Atlántico",
+                "activa": True,
+            },
+            follow=True,
+        )
+        self.assertEqual(res_create.status_code, 200)
+        ciudad_baq = Ciudad.objects.get(codigo="BAQ")
+        self.assertEqual(ciudad_baq.version, 1)
+
+        # 2. Actualización exitosa con versión correcta
+        res_edit_ok = self.client.post(
+            reverse("ciudad_update", args=[ciudad_baq.pk]),
+            {
+                "version": ciudad_baq.version,
+                "codigo": "BAQ",
+                "nombre": "Barranquilla D.E.",
+                "departamento": "Atlántico",
+                "activa": True,
+            },
+            follow=True,
+        )
+        self.assertEqual(res_edit_ok.status_code, 200)
+        ciudad_baq.refresh_from_db()
+        self.assertEqual(ciudad_baq.version, 2)
+        self.assertEqual(ciudad_baq.nombre, "Barranquilla D.E.")
+
+        # 3. Actualización concurrente con versión desactualizada (stale version 1 vs 2) -> HTTP 409
+        res_conflict = self.client.post(
+            reverse("ciudad_update", args=[ciudad_baq.pk]),
+            {
+                "version": 1,  # Versión vieja
+                "codigo": "BAQ",
+                "nombre": "Nombre Concurrente Pisado",
+                "departamento": "Atlántico",
+                "activa": True,
+            },
+        )
+        self.assertEqual(res_conflict.status_code, 409)
+        self.assertContains(res_conflict, "Conflicto de Concurrencia", status_code=409)
+
+        # Verificar que el registro no fue pisado
+        ciudad_baq.refresh_from_db()
+        self.assertEqual(ciudad_baq.nombre, "Barranquilla D.E.")
+
+    def test_vendedor_crud_multi_city_and_state_blocking_audit(self):
+        # 1. Crear Vendedor
+        res_create = self.client.post(
+            reverse("vendedor_create"),
+            {
+                "aliado": self.aliado.pk,
+                "coordinador": self.coordinador.pk,
+                "documento": "CC-11223344",
+                "nombre_completo": "Camilo Torres",
+                "correo": "camilo@valle.com",
+                "telefono": "3187654321",
+                "cargo": "Asesor Senior",
+                "ciudad_base": self.ciudad_cali.pk,
+                "ciudades_operacion": [self.ciudad_cali.pk, self.ciudad_bogota.pk],
+                "estado": EstadoVendedor.ACTIVO,
+                "motivo_estado": "",
+                "fecha_ingreso": "2026-02-01",
+            },
+            follow=True,
+        )
+        self.assertEqual(res_create.status_code, 200)
+        vendedor = Vendedor.objects.get(documento="CC-11223344")
+        self.assertEqual(vendedor.ciudades_operacion.count(), 2)
+
+        # 2. Transición a BLOQUEADO
+        res_bloqueo = self.client.post(
+            reverse("vendedor_update", args=[vendedor.pk]),
+            {
+                "version": vendedor.version,
+                "aliado": self.aliado.pk,
+                "coordinador": self.coordinador.pk,
+                "documento": "CC-11223344",
+                "nombre_completo": "Camilo Torres",
+                "correo": "camilo@valle.com",
+                "telefono": "3187654321",
+                "cargo": "Asesor Senior",
+                "ciudad_base": self.ciudad_cali.pk,
+                "ciudades_operacion": [self.ciudad_cali.pk],
+                "estado": EstadoVendedor.BLOQUEADO,
+                "motivo_estado": "Incumplimiento de entregas comerciales",
+                "fecha_ingreso": "2026-02-01",
+            },
+            follow=True,
+        )
+        self.assertEqual(res_bloqueo.status_code, 200)
+        vendedor.refresh_from_db()
+        self.assertEqual(vendedor.estado, EstadoVendedor.BLOQUEADO)
+
+        # Verificar que se registró la bitácora de auditoría con acción BLOQUEO
+        log_bloqueo = AuditLog.objects.filter(entidad="Vendedor", registro_id=vendedor.pk).order_by("-fecha_evento").first()
+        self.assertIsNotNone(log_bloqueo)
+        self.assertEqual(log_bloqueo.accion, AccionAuditoria.BLOQUEO)
+        self.assertEqual(log_bloqueo.cambios_json["estado"]["despues"], EstadoVendedor.BLOQUEADO)
+
+    def test_audit_log_list_view_renders_changes(self):
+        # Provocar cambio para tener registros de auditoría
+        self.ciudad_cali.optimistic_update(
+            expected_version=self.ciudad_cali.version,
+            usuario=self.admin_user,
+            nombre="Santiago de Cali",
+        )
+        response = self.client.get(reverse("audit_log_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Bitácora de Auditoría")
+        self.assertContains(response, "Ciudad")
+
+
 
 
 

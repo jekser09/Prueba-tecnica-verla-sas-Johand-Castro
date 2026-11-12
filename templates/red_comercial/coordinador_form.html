@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }} | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 680px; margin: 1.5rem auto;">
+  <nav aria-label="breadcrumb">
+    <ul>
+      <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+      <li><a href="{% url 'coordinador_list' %}">Coordinadores</a></li>
+      <li>{{ titulo }}</li>
+    </ul>
+  </nav>
+
+  <article>
+    <header>
+      <h3>{{ titulo }}</h3>
+    </header>
+
+    {% if concurrency_error %}
+      <div class="verla-alert alert-conflict">
+        <strong>⚠️ Conflicto de Concurrencia Optimista (HTTP 409):</strong>
+        <p>{{ concurrency_error }}</p>
+        <button type="button" class="contrast" onclick="window.location.reload();">Recargar últimos datos</button>
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      {{ form.version }}
+
+      <label for="{{ form.aliado.id_for_label }}">
+        Aliado Comercial Asignado
+        {{ form.aliado }}
+        {% if form.aliado.errors %}<small style="color:var(--verla-status-blocked)">{{ form.aliado.errors.0 }}</small>{% endif %}
+      </label>
+
+      <div class="grid">
+        <label for="{{ form.documento.id_for_label }}">
+          Documento de Identidad
+          {{ form.documento }}
+          {% if form.documento.errors %}<small style="color:var(--verla-status-blocked)">{{ form.documento.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.nombre_completo.id_for_label }}">
+          Nombre Completo
+          {{ form.nombre_completo }}
+          {% if form.nombre_completo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.nombre_completo.errors.0 }}</small>{% endif %}
+        </label>
+      </div>
+
+      <div class="grid">
+        <label for="{{ form.correo.id_for_label }}">
+          Correo Electrónico
+          {{ form.correo }}
+          {% if form.correo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.correo.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.telefono.id_for_label }}">
+          Teléfono
+          {{ form.telefono }}
+          {% if form.telefono.errors %}<small style="color:var(--verla-status-blocked)">{{ form.telefono.errors.0 }}</small>{% endif %}
+        </label>
+      </div>
+
+      <label for="{{ form.activo.id_for_label }}">
+        <input type="checkbox" name="{{ form.activo.name }}" id="{{ form.activo.id_for_label }}" {% if form.activo.value %}checked{% endif %}>
+        Coordinador comercial activo
+      </label>
+
+      <footer style="display:flex; justify-content:space-between; margin-top:1.5rem;">
+        <a href="{% url 'coordinador_list' %}" role="button" class="secondary outline">Cancelar</a>
+        <button type="submit" class="contrast">Guardar Coordinador</button>
+      </footer>
+    </form>
+  </article>
+</div>
+
+{% if concurrency_error %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.VerlaAlert) {
+      VerlaAlert.conflict('{{ concurrency_error|escapejs }}');
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

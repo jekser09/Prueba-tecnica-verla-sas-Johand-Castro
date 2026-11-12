@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }} | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 1.5rem auto;">
+  <nav aria-label="breadcrumb">
+    <ul>
+      <li><a href="{% url 'portal_home' %}">Inicio</a></li>
+      <li><a href="{% url 'op_default' %}">Operación</a></li>
+      <li>{{ titulo }}</li>
+    </ul>
+  </nav>
+
+  <article>
+    <header>
+      <h3>{{ titulo }}</h3>
+    </header>
+
+    {% if concurrency_error %}
+      <div class="verla-alert alert-conflict">
+        <strong>⚠️ Conflicto de Concurrencia Optimista (HTTP 409):</strong>
+        <p>{{ concurrency_error }}</p>
+        <button type="button" class="contrast" onclick="window.location.reload();">Recargar últimos datos</button>
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      {{ form.version }}
+
+      <label for="{{ form.vendedor.id_for_label }}">
+        Vendedor Asignado *
+        {{ form.vendedor }}
+        {% if form.vendedor.errors %}<small style="color:var(--verla-status-blocked)">{{ form.vendedor.errors.0 }}</small>{% endif %}
+      </label>
+
+      <label for="{{ form.periodo.id_for_label }}">
+        Periodo Mensual (YYYY-MM) *
+        {{ form.periodo }}
+        {% if form.periodo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.periodo.errors.0 }}</small>{% endif %}
+      </label>
+
+      <div class="grid">
+        <label for="{{ form.meta_valor.id_for_label }}">
+          Meta Fijada ($) *
+          {{ form.meta_valor }}
+          {% if form.meta_valor.errors %}<small style="color:var(--verla-status-blocked)">{{ form.meta_valor.errors.0 }}</small>{% endif %}
+        </label>
+
+        <label for="{{ form.resultado_real.id_for_label }}">
+          Resultado Real ($)
+          {{ form.resultado_real }}
+          {% if form.resultado_real.errors %}<small style="color:var(--verla-status-blocked)">{{ form.resultado_real.errors.0 }}</small>{% endif %}
+        </label>
+      </div>
+
+      <label for="{{ form.observaciones.id_for_label }}">
+        Observaciones
+        {{ form.observaciones }}
+        {% if form.observaciones.errors %}<small style="color:var(--verla-status-blocked)">{{ form.observaciones.errors.0 }}</small>{% endif %}
+      </label>
+
+      <footer style="display:flex; justify-content:space-between; margin-top:1.5rem;">
+        <a href="{% url 'op_default' %}" role="button" class="secondary outline">Cancelar</a>
+        <button type="submit" class="contrast">Guardar Meta</button>
+      </footer>
+    </form>
+  </article>
+</div>
+
+{% if concurrency_error %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.VerlaAlert) {
+      VerlaAlert.conflict('{{ concurrency_error|escapejs }}');
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

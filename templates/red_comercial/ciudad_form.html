@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }} | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 1.5rem auto;">
+  <nav aria-label="breadcrumb">
+    <ul>
+      <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+      <li><a href="{% url 'ciudad_list' %}">Ciudades</a></li>
+      <li>{{ titulo }}</li>
+    </ul>
+  </nav>
+
+  <article>
+    <header>
+      <h3>{{ titulo }}</h3>
+    </header>
+
+    {% if concurrency_error %}
+      <div class="verla-alert alert-conflict">
+        <strong>⚠️ Conflicto de Concurrencia Optimista (HTTP 409):</strong>
+        <p>{{ concurrency_error }}</p>
+        <button type="button" class="contrast" onclick="window.location.reload();">Recargar últimos datos</button>
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      {{ form.version }}
+
+      <label for="{{ form.codigo.id_for_label }}">
+        Código de Ciudad
+        {{ form.codigo }}
+        {% if form.codigo.errors %}<small style="color:var(--verla-status-blocked)">{{ form.codigo.errors.0 }}</small>{% endif %}
+      </label>
+
+      <label for="{{ form.nombre.id_for_label }}">
+        Nombre de la Ciudad
+        {{ form.nombre }}
+        {% if form.nombre.errors %}<small style="color:var(--verla-status-blocked)">{{ form.nombre.errors.0 }}</small>{% endif %}
+      </label>
+
+      <label for="{{ form.departamento.id_for_label }}">
+        Departamento
+        {{ form.departamento }}
+        {% if form.departamento.errors %}<small style="color:var(--verla-status-blocked)">{{ form.departamento.errors.0 }}</small>{% endif %}
+      </label>
+
+      <label for="{{ form.activa.id_for_label }}">
+        <input type="checkbox" name="{{ form.activa.name }}" id="{{ form.activa.id_for_label }}" {% if form.activa.value %}checked{% endif %}>
+        Ciudad activa para operaciones comerciales
+      </label>
+
+      <footer style="display:flex; justify-content:space-between; margin-top:1.5rem;">
+        <a href="{% url 'ciudad_list' %}" role="button" class="secondary outline">Cancelar</a>
+        <button type="submit" class="contrast">Guardar Cambios</button>
+      </footer>
+    </form>
+  </article>
+</div>
+
+{% if concurrency_error %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.VerlaAlert) {
+      VerlaAlert.conflict('{{ concurrency_error|escapejs }}');
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,203 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ PORTAL_TITLE }}{% endblock %}</title>
+  <!-- Pico CSS v2 via CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <!-- SweetAlert2 Dark Theme via CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.min.css">
+  <!-- VERLA SAS Dark Theme & Design Tokens -->
+  <link rel="stylesheet" href="{% static 'css/verla.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Demo Role Switcher Toolbar (Visible para agilizar la prueba técnica) -->
+  <section class="role-switcher-bar">
+    <div class="container">
+      <div>
+        <small><strong>Simulador de Roles (Demo):</strong></small>
+        {% if actor.rol != "ANONIMO" %}
+          <small>Conectado como: <strong>{{ request.user.username }}</strong> ({{ actor.rol }})</small>
+          {% if actor.es_vendedor %}
+            <span class="badge-status {{ actor.estado_vendedor|lower }}">{{ actor.estado_vendedor }}</span>
+          {% endif %}
+        {% else %}
+          <small>Sesión: Invitado / Anónimo</small>
+        {% endif %}
+      </div>
+      <div>
+        <form action="{% url 'simular_rol' %}" method="post" class="role-switcher-form">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <select name="rol_simulado" aria-label="Cambiar rol de prueba">
+            <option value="admin" {% if actor.rol == 'ADMIN' %}selected{% endif %}>👑 Administrador (Superuser)</option>
+            <option value="aliado" {% if actor.rol == 'ALIADO' %}selected{% endif %}>🏢 Aliado Comercial</option>
+            <option value="coordinador" {% if actor.rol == 'COORDINADOR' %}selected{% endif %}>👥 Coordinador Comercial</option>
+            <option value="vendedor_activo" {% if actor.es_vendedor and actor.estado_vendedor == 'ACTIVO' %}selected{% endif %}>💼 Vendedor Activo</option>
+            <option value="vendedor_bloqueado" {% if actor.es_vendedor and actor.estado_vendedor == 'BLOQUEADO' %}selected{% endif %}>🚫 Vendedor Bloqueado</option>
+          </select>
+          <button type="submit" class="outline contrast">Cambiar</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Top Navigation Header -->
+  <header class="verla-navbar">
+    <nav class="container">
+      <ul>
+        <li>
+          <a href="{% url 'portal_home' %}" class="brand-badge" title="Inicio — VERLA SAS">
+            <img src="{% static 'img/logo-verla.png' %}" alt="VERLA SAS">
+          </a>
+        </li>
+      </ul>
+      <ul>
+        {% if request.user.is_authenticated %}
+          <li><a href="{% url 'portal_home' %}">Inicio</a></li>
+          {% if actor.es_admin or actor.es_aliado or actor.es_coordinador %}
+            <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+            <li><a href="{% url 'op_default' %}">Metas & Ofertas</a></li>
+            <li><a href="{% url 'asis_default' %}">Asistente IA</a></li>
+          {% elif actor.es_vendedor %}
+            <li><a href="{% url 'op_default' %}">Mis Metas & Ofertas</a></li>
+          {% endif %}
+          <li>
+            <form action="{% url 'logout' %}" method="post" style="display:inline; margin:0;">
+              {% csrf_token %}
+              <button type="submit" class="secondary outline" style="padding:0.25rem 0.6rem; font-size:0.85rem; margin:0;">Cerrar sesión</button>
+            </form>
+          </li>
+        {% else %}
+          <li><a href="{% url 'login' %}">Iniciar sesión</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Flash Messages -->
+  {% if messages %}
+    <div class="container" style="margin-top: 1rem;">
+      {% for message in messages %}
+        <div class="verla-alert {% if message.tags == 'error' %}alert-conflict{% else %}alert-info{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Main Content Block -->
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="container" style="border-top: 1px solid var(--verla-border); padding: 1.5rem 0; margin-top: 2rem;">
+    <small style="color: var(--verla-text-muted);">
+      &copy; 2026 VERLA SAS — Portal de Aliados Comerciales. Todos los derechos reservados.
+    </small>
+  </footer>
+
+  <!-- SweetAlert2 JS via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    // Puente unificado de alertas en Vanilla JS con integración a la paleta VERLA
+    window.VerlaAlert = {
+      toast: function(icon, title) {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: icon,
+          title: title,
+          showConfirmButton: false,
+          timer: 3500,
+          timerProgressBar: true,
+          background: '#11102E',
+          color: '#F4F4FB',
+        });
+      },
+      success: function(title, text) {
+        return Swal.fire({
+          icon: 'success',
+          title: title,
+          text: text,
+          confirmButtonColor: '#3B33BC',
+          background: '#11102E',
+          color: '#F4F4FB',
+        });
+      },
+      error: function(title, text) {
+        return Swal.fire({
+          icon: 'error',
+          title: title,
+          text: text,
+          confirmButtonColor: '#3B33BC',
+          background: '#11102E',
+          color: '#F4F4FB',
+        });
+      },
+      warning: function(title, text) {
+        return Swal.fire({
+          icon: 'warning',
+          title: title,
+          text: text,
+          confirmButtonColor: '#3B33BC',
+          background: '#11102E',
+          color: '#F4F4FB',
+        });
+      },
+      confirm: function(title, text, confirmButtonText = 'Confirmar') {
+        return Swal.fire({
+          icon: 'warning',
+          title: title,
+          text: text,
+          showCancelButton: true,
+          confirmButtonColor: '#3B33BC',
+          cancelButtonColor: '#EF4444',
+          confirmButtonText: confirmButtonText,
+          cancelButtonText: 'Cancelar',
+          background: '#11102E',
+          color: '#F4F4FB',
+        });
+      },
+      conflict: function(mensaje) {
+        return Swal.fire({
+          icon: 'warning',
+          title: 'Conflicto de Concurrencia (409)',
+          html: `<p>${mensaje || 'El registro fue modificado por otro usuario en paralelo.'}</p><small style="color:#A09EC7">Para evitar sobreescribir datos ajenos, recargue la página.</small>`,
+          confirmButtonColor: '#3B33BC',
+          confirmButtonText: 'Recargar página',
+          showCancelButton: true,
+          cancelButtonText: 'Cerrar',
+          background: '#11102E',
+          color: '#F4F4FB',
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.location.reload();
+          }
+        });
+      }
+    };
+
+    // Auto-disparo de mensajes de Django a través de SweetAlert2
+    document.addEventListener('DOMContentLoaded', function() {
+      {% if messages %}
+        {% for message in messages %}
+          {% if message.tags == 'error' %}
+            VerlaAlert.error('Atención', '{{ message|escapejs }}');
+          {% elif message.tags == 'warning' %}
+            VerlaAlert.warning('Aviso', '{{ message|escapejs }}');
+          {% else %}
+            VerlaAlert.toast('success', '{{ message|escapejs }}');
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    });
+  </script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

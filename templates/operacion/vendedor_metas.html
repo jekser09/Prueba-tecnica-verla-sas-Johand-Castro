@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Mis Metas & Ofertas | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="margin-bottom: 2rem;">
+    <nav aria-label="breadcrumb">
+      <ul>
+        <li><a href="{% url 'portal_home' %}">Inicio</a></li>
+        <li>Portal del Vendedor</li>
+      </ul>
+    </nav>
+    <h2>Ficha Comercial: {{ vendedor.nombre_completo }}</h2>
+    <p style="color: var(--verla-text-muted);">
+      Coordinador: <strong>{{ vendedor.coordinador.nombre_completo }}</strong> | Aliado: <strong>{{ vendedor.aliado.razon_social }}</strong> | Ciudad Base: <strong>{{ vendedor.ciudad_base.nombre }}</strong>
+    </p>
+  </div>
+
+  <!-- Meta del Periodo Seleccionado -->
+  <article style="margin-bottom: 2rem;">
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+      <strong>🎯 Mi Meta en {{ periodo }}</strong>
+      <span class="badge-status activo">Asignada</span>
+    </header>
+    {% if meta_periodo %}
+      <div class="grid" style="margin-top: 1rem;">
+        <div>
+          <small style="color: var(--verla-text-muted);">Meta Presupuestada</small>
+          <h3>${{ meta_periodo.meta_valor|floatformat:2 }}</h3>
+        </div>
+        <div>
+          <small style="color: var(--verla-text-muted);">Ventas Reales Ejecutadas</small>
+          <h3>${{ meta_periodo.resultado_real|floatformat:2 }}</h3>
+        </div>
+        <div>
+          <small style="color: var(--verla-text-muted);">Porcentaje de Cumplimiento</small>
+          <h3>
+            {% if meta_periodo.porcentaje_cumplimiento >= 100 %}
+              <span style="color: var(--verla-status-active);">{{ meta_periodo.porcentaje_cumplimiento }}%</span>
+            {% elif meta_periodo.porcentaje_cumplimiento >= 80 %}
+              <span style="color: var(--verla-status-inactive);">{{ meta_periodo.porcentaje_cumplimiento }}%</span>
+            {% else %}
+              <span style="color: var(--verla-status-blocked);">{{ meta_periodo.porcentaje_cumplimiento }}%</span>
+            {% endif %}
+          </h3>
+        </div>
+      </div>
+      {% if meta_periodo.observaciones %}
+        <p style="font-size: 0.9rem; color: var(--verla-text-muted); margin-top: 0.5rem;">
+          <em>Observaciones: {{ meta_periodo.observaciones }}</em>
+        </p>
+      {% endif %}
+    {% else %}
+      <p style="color: var(--verla-text-muted); padding: 1rem 0; margin: 0;">No se ha cargado una meta comercial para el periodo {{ periodo }}.</p>
+    {% endif %}
+  </article>
+
+  <!-- Ofertas Promocionales Vigentes para el Vendedor -->
+  <article style="margin-bottom: 2rem;">
+    <header>
+      <strong>🎁 Ofertas Comerciales Disponibles para mi Zona</strong>
+    </header>
+    {% if ofertas_visibles %}
+      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        {% for o in ofertas_visibles %}
+          <article style="border: 1px solid var(--verla-border); padding: 1rem; background: var(--verla-bg-elevated);">
+            {% if o.imagen %}
+              <img src="{{ o.imagen.url }}" alt="{{ o.titulo }}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 6px; margin-bottom: 0.75rem;">
+            {% endif %}
+            <h4 style="margin-bottom: 0.4rem;">{{ o.titulo }}</h4>
+            <small style="color: var(--verla-text-muted); display: block; margin-bottom: 0.5rem;">
+              Vigencia: {{ o.fecha_inicio|date:"d M" }} al {{ o.fecha_fin|date:"d M Y" }}
+            </small>
+            <p style="font-size: 0.85rem; line-height: 1.4;">{{ o.descripcion }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--verla-text-muted); padding: 1rem 0; margin: 0;">No hay ofertas comerciales activas asignadas a su aliado o ciudades de cobertura en este momento.</p>
+    {% endif %}
+  </article>
+
+  <!-- Historial de Metas -->
+  <article>
+    <header>
+      <strong>Historial de Cumplimiento</strong>
+    </header>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Periodo</th>
+          <th>Meta ($)</th>
+          <th>Real ($)</th>
+          <th>% Cumplimiento</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in historial_metas %}
+          <tr>
+            <td><strong>{{ h.periodo }}</strong></td>
+            <td>${{ h.meta_valor|floatformat:2 }}</td>
+            <td>${{ h.resultado_real|floatformat:2 }}</td>
+            <td>
+              {% if h.porcentaje_cumplimiento >= 100 %}
+                <span class="badge-status activo">{{ h.porcentaje_cumplimiento }}%</span>
+              {% else %}
+                <span class="badge-status inactivo">{{ h.porcentaje_cumplimiento }}%</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--verla-text-muted);">Sin historial de metas.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

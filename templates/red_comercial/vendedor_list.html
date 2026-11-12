@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Fuerza de Ventas (Vendedores) | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ul>
+          <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+          <li>Vendedores</li>
+        </ul>
+      </nav>
+      <h2>Fuerza de Ventas (Vendedores)</h2>
+    </div>
+    {% if actor.es_admin or actor.es_aliado or actor.es_coordinador %}
+      <a href="{% url 'vendedor_create' %}" role="button" class="contrast">+ Nuevo Vendedor</a>
+    {% endif %}
+  </div>
+
+  <!-- Barra de Filtros -->
+  <article style="padding: 1rem; margin-bottom: 1.5rem;">
+    <form method="get" style="display: flex; gap: 1rem; margin: 0; align-items: flex-end;">
+      <div style="flex: 2;">
+        <label for="filtro_q" style="font-size: 0.85rem; margin-bottom: 0.2rem;">Buscar por nombre o cédula:</label>
+        <input type="search" name="q" id="filtro_q" value="{{ filtro_q }}" placeholder="Ej: Laura Gómez o 1020..." style="margin: 0;">
+      </div>
+      <div style="flex: 1;">
+        <label for="filtro_estado" style="font-size: 0.85rem; margin-bottom: 0.2rem;">Estado Operativo:</label>
+        <select name="estado" id="filtro_estado" style="margin: 0;">
+          <option value="">Todos los estados</option>
+          {% for val, label in estados %}
+            <option value="{{ val }}" {% if filtro_estado == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <button type="submit" class="contrast" style="margin: 0; padding: 0.45rem 1rem;">Filtrar</button>
+      </div>
+      {% if filtro_q or filtro_estado %}
+        <div>
+          <a href="{% url 'vendedor_list' %}" role="button" class="outline secondary" style="margin: 0; padding: 0.45rem 0.8rem;">Limpiar</a>
+        </div>
+      {% endif %}
+    </form>
+  </article>
+
+  <article>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Documento</th>
+          <th>Nombre Completo</th>
+          <th>Aliado & Coordinador</th>
+          <th>Ciudad Base & Operación</th>
+          <th>Estado Operativo</th>
+          <th>Versión</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vendedores %}
+          <tr>
+            <td><code>{{ v.documento }}</code></td>
+            <td>
+              <strong>{{ v.nombre_completo }}</strong><br>
+              <small style="color:var(--verla-text-muted);">{{ v.cargo }}</small>
+            </td>
+            <td>
+              <small>
+                <strong>Aliado:</strong> {{ v.aliado.razon_social }}<br>
+                <strong>Coord:</strong> {{ v.coordinador.nombre_completo }}
+              </small>
+            </td>
+            <td>
+              <small>
+                <strong>Base:</strong> {{ v.ciudad_base.nombre }}<br>
+                <strong>Operación:</strong>
+                {% for c in v.ciudades_operacion.all %}
+                  <span style="display:inline-block; background:rgba(59,51,188,0.25); padding:1px 5px; border-radius:4px; font-size:0.75rem;">{{ c.codigo }}</span>
+                {% empty %}
+                  <em>Solo base</em>
+                {% endfor %}
+              </small>
+            </td>
+            <td>
+              <span class="badge-status {{ v.estado|lower }}">{{ v.get_estado_display }}</span>
+              {% if v.motivo_estado %}
+                <br><small style="color:var(--verla-text-muted); font-size:0.75rem;">{{ v.motivo_estado|truncatechars:35 }}</small>
+              {% endif %}
+            </td>
+            <td><small>v{{ v.version }}</small></td>
+            <td>
+              <a href="{% url 'vendedor_update' v.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--verla-text-muted);">No se encontraron vendedores con los filtros aplicados.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

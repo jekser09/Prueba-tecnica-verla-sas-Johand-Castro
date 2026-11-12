@@ -191,6 +191,6 @@ class OfertaPeriodo(VersionedModel):
                 fecha_fin__gte=fecha_consulta,
             )
             .filter(Q(aliado__isnull=True) | Q(aliado_id=vendedor.aliado_id))
-            .filter(Q(ciudades__isnull=True) | Q(ciudades__id__in=ciudades_ids))
+            .filter(Q(ciudades__isnull=True) | Q(ciudades__in=ciudades_ids) | Q(ciudades=None))
             .distinct()
         )

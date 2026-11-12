@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Red Comercial | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+      <h1>Gobernanza de Red Comercial</h1>
+      <p style="color: var(--verla-text-muted);">Supervisión de aliados, coordinadores, vendedores y cobertura de ciudades.</p>
+    </div>
+    {% if actor.es_admin or actor.es_aliado %}
+      <div>
+        <a href="{% url 'audit_log_list' %}" role="button" class="outline contrast" style="font-size: 0.85rem;">📋 Ver Historial de Auditoría</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="grid" style="margin-bottom: 2rem;">
+    <article>
+      <header><strong>Ciudades Activas</strong></header>
+      <h2>{{ total_ciudades }}</h2>
+      <footer><a href="{% url 'ciudad_list' %}" role="button" class="contrast outline">Ver Ciudades</a></footer>
+    </article>
+    <article>
+      <header><strong>Aliados Comerciales</strong></header>
+      <h2>{{ total_aliados }}</h2>
+      <footer><a href="{% url 'aliado_list' %}" role="button" class="contrast outline">Ver Aliados</a></footer>
+    </article>
+    <article>
+      <header><strong>Coordinadores</strong></header>
+      <h2>{{ total_coordinadores }}</h2>
+      <footer><a href="{% url 'coordinador_list' %}" role="button" class="contrast outline">Ver Coordinadores</a></footer>
+    </article>
+    <article>
+      <header><strong>Fuerza de Ventas</strong></header>
+      <div>
+        <p style="margin: 0;"><span class="badge-status activo">Activos: {{ vendedores_activos }}</span></p>
+        <p style="margin: 0.4rem 0 0;"><span class="badge-status bloqueado">Bloqueados: {{ vendedores_bloqueados }}</span></p>
+      </div>
+      <footer><a href="{% url 'vendedor_list' %}" role="button" class="contrast">Gestionar Vendedores</a></footer>
+    </article>
+  </div>
+</section>
+{% endblock %}

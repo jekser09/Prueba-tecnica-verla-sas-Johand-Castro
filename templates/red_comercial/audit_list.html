@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Auditoría | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ul>
+          <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+          <li>Historial de Auditoría</li>
+        </ul>
+      </nav>
+      <h2>Bitácora de Auditoría & Trazabilidad de Cambios</h2>
+      <p style="color: var(--verla-text-muted);">Registro inmutable de creaciones, modificaciones, cambios de estado y bloqueos con diff JSON.</p>
+    </div>
+  </div>
+
+  <!-- Filtro por entidad -->
+  <article style="padding: 1rem; margin-bottom: 1.5rem;">
+    <form method="get" style="display: flex; gap: 1rem; margin: 0; align-items: flex-end;">
+      <div style="flex: 1;">
+        <label for="filtro_entidad" style="font-size: 0.85rem; margin-bottom: 0.2rem;">Filtrar por Entidad:</label>
+        <select name="entidad" id="filtro_entidad" style="margin: 0;">
+          <option value="">Todas las entidades</option>
+          <option value="Ciudad" {% if entidad_filtro == 'Ciudad' %}selected{% endif %}>Ciudad</option>
+          <option value="Aliado" {% if entidad_filtro == 'Aliado' %}selected{% endif %}>Aliado Comercial</option>
+          <option value="Coordinador" {% if entidad_filtro == 'Coordinador' %}selected{% endif %}>Coordinador</option>
+          <option value="Vendedor" {% if entidad_filtro == 'Vendedor' %}selected{% endif %}>Vendedor</option>
+        </select>
+      </div>
+      <div>
+        <button type="submit" class="contrast" style="margin: 0; padding: 0.45rem 1rem;">Filtrar</button>
+      </div>
+      {% if entidad_filtro %}
+        <div>
+          <a href="{% url 'audit_log_list' %}" role="button" class="outline secondary" style="margin: 0; padding: 0.45rem 0.8rem;">Limpiar</a>
+        </div>
+      {% endif %}
+    </form>
+  </article>
+
+  <article>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Fecha / Hora</th>
+          <th>Entidad & ID</th>
+          <th>Acción</th>
+          <th>Usuario Actor</th>
+          <th>Versión</th>
+          <th>Detalle de Cambios (Antes / Después)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page_obj %}
+          <tr>
+            <td>
+              <small>{{ log.fecha_evento|date:"Y-m-d H:i:s" }}</small>
+            </td>
+            <td>
+              <strong>{{ log.entidad }}</strong><br>
+              <small style="color: var(--verla-text-muted);">ID: #{{ log.registro_id }}</small>
+            </td>
+            <td>
+              {% if log.accion == 'BLOQUEO' %}
+                <span class="badge-status bloqueado">Bloqueo</span>
+              {% elif log.accion == 'CAMBIO_ESTADO' %}
+                <span class="badge-status inactivo">Cambio Estado</span>
+              {% elif log.accion == 'CREACION' %}
+                <span class="badge-status activo">Creación</span>
+              {% else %}
+                <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700;">{{ log.get_accion_display }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <small>{{ log.usuario.username|default:"Sistema / Demo" }}</small>
+            </td>
+            <td>
+              <code>v{{ log.version_resultante }}</code>
+            </td>
+            <td>
+              {% if log.cambios_json %}
+                <details style="margin: 0; font-size: 0.8rem;">
+                  <summary style="cursor: pointer; color: var(--verla-brand-indigo-hover);">Ver {{ log.cambios_json.keys|length }} campo(s) modificados</summary>
+                  <pre style="background: var(--verla-bg-canvas); padding: 0.5rem; border-radius: 4px; max-width: 380px; overflow-x: auto; margin-top: 0.5rem;"><code>{{ log.cambios_json|pprint }}</code></pre>
+                </details>
+              {% else %}
+                <small style="color: var(--verla-text-muted);">Sin cambios de campos.</small>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--verla-text-muted);">No hay registros de auditoría disponibles.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Paginación -->
+    {% if page_obj.has_other_pages %}
+      <footer style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem;">
+        <div>
+          <small style="color: var(--verla-text-muted);">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</small>
+        </div>
+        <div>
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if entidad_filtro %}&entidad={{ entidad_filtro }}{% endif %}" role="button" class="outline contrast" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">Anterior</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if entidad_filtro %}&entidad={{ entidad_filtro }}{% endif %}" role="button" class="outline contrast" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">Siguiente</a>
+          {% endif %}
+        </div>
+      </footer>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

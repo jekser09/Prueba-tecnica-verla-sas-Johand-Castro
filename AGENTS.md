@@ -68,6 +68,10 @@ The UI uses **Pico CSS (v2 via CDN)** locked to a custom **Dark Theme (`<html la
 - Enforce `<html lang="es" data-theme="dark">` in the base layout and map `--pico-*` CSS custom properties to the `--verla-*` palette above.
 - Display `Logo verla horizontal.png` in the top navigation bar over a subtle light/glass badge or contrast container so both `#3B33BC` and `#070081` remain crisp against the dark header.
 - Prefer semantic HTML elements (`<main>`, `<article>`, `<section>`, `<table role="grid">`, `<dialog>`, `<nav>`) styled cleanly by Pico CSS + custom tokens, avoiding heavy JS frameworks.
+- **Client Notifications & Alerts (SweetAlert2 CDN + Vanilla JS)**:
+  - **Never use the browser's native `alert()`, `confirm()`, or `prompt()`**.
+  - All feedback, operation confirmations (e.g. state changes, deletion, blocking, copy approvals), flash messages, and error notifications (including optimistic concurrency HTTP `409 Conflict` and rate-limit HTTP `429`) must be presented via **SweetAlert2 (v11 via CDN)** with Dark Theme styling integrated with the VERLA palette (`--verla-bg-surface`, `--verla-border`, `--verla-brand-indigo`).
+  - Provide a centralized helper in vanilla JS (e.g. `window.VerlaAlert = { success, error, warning, confirm, conflict }`) loaded in `base.html` that automatically bridges Django `messages` into SweetAlert toasts or modals.
 
 ---
 

@@ -27,6 +27,7 @@ SECRET_KEY = config("SECRET_KEY")
 
 # Prefijo URL público desde el cual Granian sirve los activos estáticos recolectados.
 STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
 # Prefijo URL público desde el cual se sirven los archivos multimedia cargados por usuarios (ej. imágenes de ofertas).
 MEDIA_URL = '/media/'
 
@@ -110,13 +111,14 @@ ROOT_URLCONF = 'aliados.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'red_comercial.context_processors.portal_context',
             ],
         },
     },
@@ -124,6 +126,11 @@ TEMPLATES = [
 
 #WSGI_APPLICATION = 'aliados.wsgi.application'
 ASGI_APPLICATION = 'aliados.asgi.application'
+
+# Redirecciones de autenticación
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
 
 
 # Database

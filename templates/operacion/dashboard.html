@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Metas & Operación Comercial | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ul>
+          <li><a href="{% url 'portal_home' %}">Inicio</a></li>
+          <li>Operación Comercial</li>
+        </ul>
+      </nav>
+      <h2>Control Operacional de Metas & Ofertas</h2>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if actor.es_admin or actor.es_aliado %}
+        <a href="{% url 'oferta_create' %}?periodo={{ periodo_actual }}" role="button" class="outline contrast">+ Nueva Oferta</a>
+      {% endif %}
+      {% if actor.es_admin or actor.es_aliado or actor.es_coordinador %}
+        <a href="{% url 'meta_create' %}?periodo={{ periodo_actual }}" role="button" class="contrast">+ Asignar Meta</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Barra de Filtro de Periodo -->
+  <article style="padding: 1rem; margin-bottom: 1.5rem;">
+    <form method="get" style="display: flex; gap: 1rem; margin: 0; align-items: flex-end;">
+      <div>
+        <label for="periodo_input" style="font-size: 0.85rem; margin-bottom: 0.2rem;">Periodo Mensual (YYYY-MM):</label>
+        <input type="text" name="periodo" id="periodo_input" value="{{ periodo_actual }}" placeholder="YYYY-MM" style="margin: 0; width: 140px;">
+      </div>
+      <div>
+        <button type="submit" class="contrast" style="margin: 0; padding: 0.45rem 1rem;">Consultar Periodo</button>
+      </div>
+    </form>
+  </article>
+
+  <!-- Métricas Globales del Periodo -->
+  <div class="grid" style="margin-bottom: 2rem;">
+    <article>
+      <header><strong>Meta Consolidada ($)</strong></header>
+      <h2>${{ total_meta|floatformat:2 }}</h2>
+      <small style="color: var(--verla-text-muted);">Presupuesto fijado para {{ periodo_actual }}</small>
+    </article>
+    <article>
+      <header><strong>Resultado Real Alcanzado ($)</strong></header>
+      <h2>${{ total_real|floatformat:2 }}</h2>
+      <small style="color: var(--verla-text-muted);">Ventas ejecutadas verificadas</small>
+    </article>
+    <article>
+      <header><strong>Cumplimiento Global</strong></header>
+      <h2>
+        {% if porcentaje_global >= 100 %}
+          <span style="color: var(--verla-status-active);">{{ porcentaje_global }}%</span>
+        {% elif porcentaje_global >= 80 %}
+          <span style="color: var(--verla-status-inactive);">{{ porcentaje_global }}%</span>
+        {% else %}
+          <span style="color: var(--verla-status-blocked);">{{ porcentaje_global }}%</span>
+        {% endif %}
+      </h2>
+      <small style="color: var(--verla-text-muted);">Umbral meta 100%</small>
+    </article>
+  </div>
+
+  <!-- Ofertas Activas del Periodo -->
+  <article style="margin-bottom: 2rem;">
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+      <strong>🎁 Ofertas Promocionales Vigentes ({{ periodo_actual }})</strong>
+      <small style="color: var(--verla-text-muted);">{{ ofertas.count }} oferta(s)</small>
+    </header>
+    {% if ofertas %}
+      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        {% for o in ofertas %}
+          <article style="border: 1px solid var(--verla-border); padding: 1rem; background: var(--verla-bg-elevated);">
+            {% if o.imagen %}
+              <img src="{{ o.imagen.url }}" alt="{{ o.titulo }}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 6px; margin-bottom: 0.75rem;">
+            {% endif %}
+            <h4 style="margin-bottom: 0.4rem;">{{ o.titulo }}</h4>
+            <small style="color: var(--verla-text-muted); display: block; margin-bottom: 0.5rem;">
+              Vigencia: {{ o.fecha_inicio|date:"d M" }} - {{ o.fecha_fin|date:"d M Y" }}
+            </small>
+            <p style="font-size: 0.85rem; line-height: 1.4;">{{ o.descripcion|truncatewords:20 }}</p>
+            <footer>
+              {% if actor.es_admin or actor.es_aliado %}
+                <a href="{% url 'oferta_update' o.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; width: 100%;">Editar Oferta</a>
+              {% endif %}
+            </footer>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: var(--verla-text-muted); padding: 1rem 0; margin: 0;">No hay ofertas comerciales activas registradas para el periodo {{ periodo_actual }}.</p>
+    {% endif %}
+  </article>
+
+  <!-- Tabla Detalle por Vendedor -->
+  <article>
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+      <strong>Detalle de Metas por Vendedor ({{ periodo_actual }})</strong>
+      <small style="color: var(--verla-text-muted);">{{ metas.count }} registro(s)</small>
+    </header>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Vendedor</th>
+          <th>Coordinador & Aliado</th>
+          <th>Meta ($)</th>
+          <th>Real ($)</th>
+          <th>% Cumplimiento</th>
+          <th>Versión</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in metas %}
+          <tr>
+            <td>
+              <strong>{{ m.vendedor.nombre_completo }}</strong><br>
+              <small style="color: var(--verla-text-muted);">C.C. {{ m.vendedor.documento }} | {{ m.vendedor.ciudad_base.nombre }}</small>
+            </td>
+            <td>
+              <small>
+                {{ m.vendedor.coordinador.nombre_completo }}<br>
+                <span style="color: var(--verla-text-muted);">{{ m.vendedor.aliado.razon_social }}</span>
+              </small>
+            </td>
+            <td>${{ m.meta_valor|floatformat:2 }}</td>
+            <td>${{ m.resultado_real|floatformat:2 }}</td>
+            <td>
+              {% if m.porcentaje_cumplimiento >= 100 %}
+                <span class="badge-status activo">{{ m.porcentaje_cumplimiento }}%</span>
+              {% elif m.porcentaje_cumplimiento >= 80 %}
+                <span class="badge-status inactivo">{{ m.porcentaje_cumplimiento }}%</span>
+              {% else %}
+                <span class="badge-status bloqueado">{{ m.porcentaje_cumplimiento }}%</span>
+              {% endif %}
+            </td>
+            <td><small>v{{ m.version }}</small></td>
+            <td>
+              <a href="{% url 'meta_update' m.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--verla-text-muted);">No hay metas registradas para el periodo {{ periodo_actual }}.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

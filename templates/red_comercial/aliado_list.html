@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Aliados Comerciales | {{ PORTAL_TITLE }}{% endblock %}
+
+{% block content %}
+<section>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ul>
+          <li><a href="{% url 'com_default' %}">Red Comercial</a></li>
+          <li>Aliados Comerciales</li>
+        </ul>
+      </nav>
+      <h2>Aliados Comerciales (Titulares de Red)</h2>
+    </div>
+    {% if actor.es_admin %}
+      <a href="{% url 'aliado_create' %}" role="button" class="contrast">+ Nuevo Aliado</a>
+    {% endif %}
+  </div>
+
+  <article>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>NIT</th>
+          <th>Razón Social</th>
+          <th>Contrato</th>
+          <th>Contacto</th>
+          <th>Estado</th>
+          <th>Versión</th>
+          {% if actor.es_admin %}<th>Acciones</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in aliados %}
+          <tr>
+            <td><code>{{ a.nit }}</code></td>
+            <td><strong>{{ a.razon_social }}</strong></td>
+            <td><small>{{ a.codigo_contrato }}</small></td>
+            <td>
+              <small>{{ a.correo_contacto }}<br>{{ a.telefono }}</small>
+            </td>
+            <td>
+              {% if a.activo %}
+                <span class="badge-status activo">Activo</span>
+              {% else %}
+                <span class="badge-status inactivo">Inactivo</span>
+              {% endif %}
+            </td>
+            <td><small>v{{ a.version }}</small></td>
+            {% if actor.es_admin %}
+              <td>
+                <a href="{% url 'aliado_update' a.pk %}" role="button" class="outline contrast" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Editar</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: var(--verla-text-muted);">No hay aliados registrados.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 
 from operacion.models import MetaMensual, OfertaPeriodo
 from red_comercial.models import Aliado, Ciudad, Coordinador, EstadoVendedor, Vendedor
@@ -181,3 +182,143 @@ class OperacionDomainModelTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             oferta_invalida.full_clean()
+
+
+class OperacionViewsAndConcurrencyTests(TestCase):
+    """
+    Pruebas de integración para las vistas del dashboard de metas, agregaciones,
+    portal del vendedor y control de concurrencia optimista HTTP 409.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("admin_op", "admin@op.com", "pass123")
+        self.client.force_login(self.admin)
+
+        self.ciudad = Ciudad.objects.create(codigo="CTG", nombre="Cartagena", departamento="Bolívar")
+        self.aliado = Aliado.objects.create(
+            nit="900555666-1",
+            razon_social="Aliado Caribe SAS",
+            codigo_contrato="CTR-CARIBE-01",
+            correo_contacto="caribe@aliado.co",
+            telefono="3005550000",
+        )
+        self.coord = Coordinador.objects.create(
+            aliado=self.aliado,
+            documento="CC-COORD-CARIBE",
+            nombre_completo="Marcos Polo",
+            correo="marcos@caribe.co",
+            telefono="3105550000",
+        )
+        self.user_vendedor = User.objects.create_user("vendedor_caribe", "vendedor@caribe.co", "pass123")
+        self.vendedor = Vendedor.objects.create(
+            aliado=self.aliado,
+            coordinador=self.coord,
+            documento="CC-VEND-CARIBE",
+            nombre_completo="Diana Arismendi",
+            correo="diana@caribe.co",
+            telefono="3205550000",
+            cargo="Asesor Caribe",
+            ciudad_base=self.ciudad,
+            estado=EstadoVendedor.ACTIVO,
+            fecha_ingreso=date(2026, 1, 1),
+            usuario=self.user_vendedor,
+        )
+
+    def test_dashboard_operacion_renders_metrics_and_drilldown(self):
+        from django.urls import reverse
+
+        MetaMensual.objects.create(
+            vendedor=self.vendedor,
+            periodo="2026-03",
+            meta_valor=Decimal("20000000.00"),
+            resultado_real=Decimal("22000000.00"),
+        )
+        response = self.client.get(reverse("op_default") + "?periodo=2026-03")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Control Operacional de Metas & Ofertas")
+        self.assertContains(response, "$20000000")
+        self.assertContains(response, "$22000000")
+        self.assertContains(response, "110")
+        self.assertContains(response, "%")
+
+    def test_meta_mensual_crud_and_optimistic_conflict_409(self):
+        from django.urls import reverse
+
+        # 1. Crear meta
+        res_create = self.client.post(
+            reverse("meta_create"),
+            {
+                "vendedor": self.vendedor.pk,
+                "periodo": "2026-04",
+                "meta_valor": "10000000.00",
+                "resultado_real": "5000000.00",
+                "observaciones": "Meta de apertura",
+            },
+            follow=True,
+        )
+        self.assertEqual(res_create.status_code, 200)
+        meta = MetaMensual.objects.get(vendedor=self.vendedor, periodo="2026-04")
+        self.assertEqual(meta.version, 1)
+
+        # 2. Actualización concurrente con versión desactualizada -> HTTP 409
+        # Primero simular un update legítimo que avanza la versión a 2
+        meta.optimistic_update(
+            expected_version=1,
+            usuario=self.admin,
+            resultado_real=Decimal("8000000.00"),
+        )
+        self.assertEqual(meta.version, 2)
+
+        # Ahora el cliente envía version=1 (stale)
+        res_conflict = self.client.post(
+            reverse("meta_update", args=[meta.pk]),
+            {
+                "version": 1,
+                "vendedor": self.vendedor.pk,
+                "periodo": "2026-04",
+                "meta_valor": "10000000.00",
+                "resultado_real": "9999999.00",
+                "observaciones": "Intento de pisar datos concurrentemente",
+            },
+        )
+        self.assertEqual(res_conflict.status_code, 409)
+        self.assertContains(res_conflict, "Conflicto de Concurrencia", status_code=409)
+
+        # Verificar que el resultado en base de datos quedó protegido en 8000000.00
+        meta.refresh_from_db()
+        self.assertEqual(meta.resultado_real, Decimal("8000000.00"))
+
+    def test_vendedor_autenticado_views_only_his_metas_and_scoped_offers(self):
+        from django.urls import reverse
+
+        # Login con el vendedor autenticado
+        self.client.force_login(self.user_vendedor)
+
+        meta = MetaMensual.objects.create(
+            vendedor=self.vendedor,
+            periodo="2026-03",
+            meta_valor=Decimal("15000000.00"),
+            resultado_real=Decimal("12000000.00"),
+        )
+        today = timezone.localdate()
+        oferta = OfertaPeriodo.objects.create(
+            titulo="Promo Caribe Fibra",
+            descripcion="Descuento en Cartagena",
+            periodo=today.strftime("%Y-%m"),
+            fecha_inicio=today,
+            fecha_fin=today,
+            activa=True,
+            aliado=self.aliado,
+        )
+        oferta.ciudades.add(self.ciudad)
+
+        response = self.client.get(reverse("op_default") + f"?periodo={today.strftime('%Y-%m')}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ficha Comercial: Diana Arismendi")
+        self.assertContains(response, f"Mi Meta en {today.strftime('%Y-%m')}")
+        self.assertContains(response, "Promo Caribe Fibra")
+
