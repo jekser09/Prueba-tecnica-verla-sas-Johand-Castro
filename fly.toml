@@ -1,0 +1,38 @@
+# fly.toml app configuration file for VERLA SAS Commercial Allies Portal
+# Documentación: https://fly.io/docs/reference/configuration/
+
+app = "verla-aliados-portal"
+primary_region = "dfw" # São Paulo, Brasil (región oficial de Fly.io en Sudamérica)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DEPLOY = "PROD"
+  PORT = "8080"
+  ALLOWED_HOSTS = "verla-aliados-portal.fly.dev,localhost,127.0.0.1"
+  CSRF_TRUSTED_ORIGINS = "https://verla-aliados-portal.fly.dev"
+
+# Montaje de volumen persistente en bloque NVMe ext4 (esencial para SQLite en modo WAL y mediafiles)
+[mounts]
+  source = "verla_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

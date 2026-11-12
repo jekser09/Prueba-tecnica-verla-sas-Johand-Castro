@@ -201,3 +201,62 @@ uv run python manage.py test
 Ran 67 tests in ~65s — OK (0 fallos, 0 errores)
 ```
 
+---
+
+## 8. Despliegue en Producción en la Nube (Fly.io)
+
+El proyecto está configurado para despliegue automatizado sobre microVMs en **[Fly.io](https://fly.io/)** con persistencia en bloque NVMe (**Fly Volumes**) para la base de datos SQLite 3 en modo WAL y los archivos multimedia, garantizando cero pérdida de datos entre reinicios y certificado HTTPS/SSL automático:
+
+### 8.1. Arquitectura de Despliegue
+
+```mermaid
+flowchart TD
+    Client["Navegador / Cliente HTTPS"] -->|TLS Wildcard *.fly.dev| Edge["Fly.io Global Anycast Edge"]
+    Edge --> VM["MicroVM Firecracker (512MB RAM)"]
+    subgraph Container ["Contenedor Docker (python:3.14-slim + uv)"]
+        Granian["Granian ASGI (Rust Hyper/Tokio)"]
+        Django["Django 6.x Application"]
+        Granian --> Django
+    end
+    VM --> Container
+    Container -->|Lecturas WAL / Escrituras Atómicas| Volume[("Volumen NVMe /data\n- db.sqlite3 (WAL)\n- /data/media")]
+```
+
+### 8.2. Pasos para Desplegar en Fly.io
+
+1. **Instalar el CLI de Fly (`flyctl`)**:
+   - *Windows (PowerShell)*: `powershell -Command "iwr -useb https://fly.io/install.ps1 | iex"`
+   - *Linux/macOS*: `curl -L https://fly.io/install.sh | sh`
+
+2. **Iniciar sesión en Fly.io**:
+   ```bash
+   fly auth login
+   ```
+
+3. **Crear la aplicación**:
+   ```bash
+   fly apps create verla-aliados-portal --machines
+   ```
+
+4. **Crear el volumen de almacenamiento persistente NVMe (1GB en Bogotá o Miami)**:
+   ```bash
+   fly volumes create verla_data --region bog --size 1
+   ```
+
+5. **Configurar los secretos de producción**:
+   ```bash
+   fly secrets set SECRET_KEY="clave-secreta-produccion-verla-2026" GEMINI_API_KEY="tu-api-key-de-gemini"
+   ```
+
+6. **Lanzar el despliegue**:
+   ```bash
+   fly deploy
+   ```
+
+7. **Abrir la aplicación en vivo con HTTPS**:
+   ```bash
+   fly open
+   ```
+   *La aplicación quedará disponible públicamente en `https://verla-aliados-portal.fly.dev/` lista para la sustentación técnica.*
+
+

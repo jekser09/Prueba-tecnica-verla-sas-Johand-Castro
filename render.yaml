@@ -1,0 +1,27 @@
+# render.yaml blueprint specification for VERLA SAS Commercial Allies Portal
+# Documentación: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: verla-aliados-portal
+    runtime: docker
+    plan: starter # Se requiere plan Starter ($7/mes) para soportar Discos Persistentes en Render
+    region: oregon
+    dockerfilePath: Dockerfile
+    disk:
+      name: verla-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DEPLOY
+        value: PROD
+      - key: PORT
+        value: 10000
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com,localhost,127.0.0.1"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://*.onrender.com"
+      - key: GEMINI_API_KEY
+        sync: false

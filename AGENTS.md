@@ -43,6 +43,7 @@ Authoritative technical and architectural contract for AI coding agents working 
 | **ASGI Server & Static/Media** | **Granian (`--interface asgi`)** | Serve `/static` and `/media` directly from Granian's Rust HTTP layer (`--static-path-route` / `--static-path-mount`). Do not add WhiteNoise. |
 | **Asset Serialization & Minification** | Custom `ManifestStaticFilesStorage` + `rjsmin` + `rcssmin` + `django-minify-html` | Minify `.js` and `.css` during `collectstatic` before MD5 filename hashing. Use standard `{% static %}` tags in templates. |
 | **Database** | **SQLite 3 in WAL mode** | Configure `transaction_mode="IMMEDIATE"`, `PRAGMA journal_mode=WAL;`, `PRAGMA synchronous=NORMAL;`, `PRAGMA busy_timeout=5000;`, and `PRAGMA foreign_keys=ON;`. |
+| **Cloud Deployment & Host** | **Fly.io with Fly Volumes (NVMe)** | Deploy via multi-stage `Dockerfile` (`uv` + `python:3.14-slim`) and `fly.toml`. Mount NVMe block volume `verla_data` to `/data` to persist `db.sqlite3` (WAL mode) and `/data/media/` across restarts. Automated wildcard TLS/SSL via `*.fly.dev`. Run Granian ASGI via `entrypoint.sh`. |
 
 ---
 
@@ -94,3 +95,24 @@ The UI uses **Pico CSS (v2 via CDN)** locked to a custom **Dark Theme (`<html la
    uv run python manage.py test
    ```
    All tests must pass (`GREEN`) prior to closing any implementation unit or committing changes.
+
+---
+
+## 5. Cloud Deployment & Production Runtime Contract (Fly.io)
+
+Authoritative production deployment architecture for the VERLA SAS Commercial Allies Portal:
+
+1. **Host & Platform**: **Fly.io** running over Firecracker microVMs in region `bog` (Bogotá, Colombia) or `mia` (Miami, USA) with automated wildcard TLS/SSL on `https://<app>.fly.dev`.
+2. **Persistent Storage (Fly Volumes)**:
+   - Volume `verla_data` mounted to `/data` (1GB ext4 NVMe block storage with native POSIX locking).
+   - Database located at `/data/db.sqlite3` in WAL mode (`DATABASE_PATH=/data/db.sqlite3`).
+   - Media directory located at `/data/media` (`MEDIA_ROOT=/data/media`).
+3. **Container Pipeline**:
+   - Multi-stage `Dockerfile` using `ghcr.io/astral-sh/uv:latest` for package installation and `python:3.14-slim` for runtime.
+   - Pre-compiles and minifies static assets with MD5 hashes during build (`RUN uv run python manage.py collectstatic --no-input`).
+   - Idempotent `entrypoint.sh` initializes `/data` with seed data on first boot, runs `migrate`, and executes Granian ASGI:
+     ```bash
+     exec uv run granian --interface asgi aliados.asgi:application --host 0.0.0.0 --port "$PORT" --static-path-route /static --static-path-mount /app/staticfiles --static-path-route /media --static-path-mount "$MEDIA_ROOT"
+     ```
+4. **Environment Secrets**: Managed via `fly secrets set SECRET_KEY=... GEMINI_API_KEY=...`.
+

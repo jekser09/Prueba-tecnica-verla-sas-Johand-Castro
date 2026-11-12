@@ -43,15 +43,15 @@ match config("DEPLOY", default=None):
         # Directorio local donde se almacenan los archivos subidos a través de ImageField / FileField.
         MEDIA_ROOT = BASE_DIR / 'mediafiles'
     case "TEST":
-        # Entorno de pruebas desplegado en servidor con rutas de sistema de archivos dedicadas.
+        # Entorno de pruebas desplegado en servidor con rutas de sistema de archivos dedicadas o configurables.
         DEBUG = True
-        STATIC_ROOT = Path('/var/www/staticverla')
-        MEDIA_ROOT = Path('/var/www/mediaverla')
+        STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / 'staticfiles')))
+        MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / 'mediafiles')))
     case "PROD":
-        # Entorno de producción endurecido con DEBUG desactivado y directorio de bitácoras.
+        # Entorno de producción endurecido con DEBUG desactivado y rutas configurables.
         DEBUG = False
-        STATIC_ROOT = Path('/var/www/staticverla')
-        MEDIA_ROOT = Path('/var/www/mediaverla')
+        STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / 'staticfiles')))
+        MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / 'mediafiles')))
     case _:
         # Respaldo seguro por defecto cuando DEPLOY no está definido o tiene un valor no reconocido.
         DEBUG = False
@@ -71,10 +71,20 @@ STORAGES = {
     },
 }
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",
-    "localhost",
-]
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS",
+    default="127.0.0.1,localhost",
+    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()]
+)
+
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="",
+    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()]
+)
+
+# Soporte de cabecera de proxy inverso para terminación SSL (Fly.io, Railway, Render)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -139,8 +149,8 @@ DATABASES = {
     'default': {
         # Motor nativo de SQLite 3 provisto por el ORM de Django.
         'ENGINE': 'django.db.backends.sqlite3',
-        # Ruta del archivo físico de la base de datos en la raíz del proyecto.
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # Ruta del archivo físico de la base de datos (configurable para volúmenes persistentes en la nube).
+        'NAME': Path(config("DATABASE_PATH", default=str(BASE_DIR / 'db.sqlite3'))),
         # Opciones avanzadas de conexión y concurrencia para SQLite 3 (Django 5.1+ / 6.x).
         'OPTIONS': {
             # Inicia las transacciones de escritura en modo IMMEDIATE en lugar de DEFERRED,
